@@ -111,7 +111,9 @@ const cents = (minutes, ratePerDay, divisor) => {
   return Math.floor((2 * num + den) / (2 * den));
 };
 
-export function calculate(fixture, stoppages) {
+// `excepted` replaces the periods the terms take off the clock, for pricing
+// someone else's calls with the same rules; leave it out for the true answer.
+export function calculate(fixture, stoppages, { excepted: callsOff } = {}) {
   const nor = toMin(fixture.nor_tendered);
   const loadStart = toMin(fixture.loading_commenced);
   const done = toMin(fixture.loading_completed);
@@ -137,7 +139,7 @@ export function calculate(fixture, stoppages) {
     const worked = subtract(clip(windowsIn, [loadStart, done]), anyStop);
     shexExcepted = subtract(windowsIn, worked);
   }
-  const excepted = union([...deductible, ...shexExcepted]);
+  const excepted = callsOff ? clip(callsOff, span) : union([...deductible, ...shexExcepted]);
   const elapsed = done - commenced;
   const used = elapsed - length(excepted);
   const balance = used - allowed;

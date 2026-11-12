@@ -7,6 +7,7 @@ import { createProfile, cleanName } from '../public/js/desk/profile.mjs';
 import { glossary } from '../public/js/desk/glossary.mjs';
 import { briefing, clauseFor, when } from '../public/js/desk/briefing.mjs';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
+import { createRun, buildTickets } from '../public/js/desk/run.mjs';
 
 const root = new URL('../public/', import.meta.url);
 const read = (p) => JSON.parse(readFileSync(new URL(p, root), 'utf8'));
@@ -62,6 +63,43 @@ check(`every fixture gets a briefing (${all.length})`, built.every((b) => b.clau
 check('no briefing gives away when laytime commenced', all.every((it, i) => !JSON.stringify(built[i]).includes(when(it.result.laytime_commenced))));
 check(`the fixtures teach more than one clause (${[...new Set(keys)].join(', ')})`, new Set(keys).size >= 4);
 check('the WIBON clause is picked only where the fixture has a waiting for berth clause', all.every((it, i) => keys[i] !== 'wibon' || it.fixture.waiting_for_berth));
+
+// ---------- the desk run (slice 2) ----------
+const playThrough = (item, pick = (tk) => tk.answer) => {
+  const run = createRun(item);
+  let guard = 0;
+  while (!run.finished && guard++ < 10000) {
+    if (run.advance(60) === 'ticket') {
+      const tk = run.open;
+      if (!run.call(pick(tk)).right) run.call(tk.answer);
+    }
+  }
+  return run;
+};
+const everyone = [training, ...all];
+const right = everyone.map((it) => playThrough(it));
+check(`right calls reproduce calc.mjs laytime used on all ${everyone.length} cargoes`, right.every((r, i) => r.used === everyone[i].result.used_min), right.map((r, i) => r.used - everyone[i].result.used_min).join(' '));
+check('right calls price to the same amount as calc.mjs, a difference of USD 0.00', right.every((r) => r.summary().difference_usd === 0 && r.summary().yours.amount_usd === r.item.result.amount_usd));
+check('calculate() with the true excepted periods returns the true answer', everyone.every((it) => {
+  const off = buildTickets(it).filter((t) => t.answer === 'off').map((t) => [t.start, t.end]);
+  return JSON.stringify(calculate(it.fixture, it.stoppages, { excepted: off })) === JSON.stringify(it.result);
+}));
+const kinds = new Set(everyone.flatMap((it) => buildTickets(it).map((t) => `${t.kind}:${t.answer}`)));
+check(`tickets cover every kind of call (${[...kinds].join(', ')})`, ['stoppage:off', 'stoppage:counts', 'shex:off', 'shex:counts'].every((k) => kinds.has(k)));
+check('tickets arrive in time order and never overlap', everyone.every((it) => buildTickets(it).every((t, i, a) => i === 0 || a[i - 1].end <= t.start)));
+
+const tt = buildTickets(training);
+check('the training cargo brings two tickets: the rain and the Sunday', tt.length === 2 && tt[0].reason === 'rain' && tt[1].kind === 'shex' && tt[1].loading && tt.every((t) => t.answer === 'off'));
+const wrongRain = playThrough(training, (tk) => (tk.reason === 'rain' ? 'counts' : tk.answer));
+const ws = wrongRain.summary();
+check('a wrong call is coached, then recast, and the statement still ends right', wrongRain.used === training.result.used_min && wrongRain.lines.length === 2 && !wrongRain.lines[0].firstTime);
+// By those calls laytime runs out on Saturday, so the Sunday falls after
+// expiry: once on demurrage, always on demurrage, and all 18 hours count
+check(`counting the rain prices as demurrage USD ${ws.yours.amount_usd} against despatch USD ${training.result.amount_usd}, once on demurrage`, ws.yours.result === 'demurrage' && ws.yours.demurrage_after_exceptions && ws.yours.amount_usd === 18750 && ws.difference_usd === -19791.67);
+check('the summary names the wrong call and scores the right ones', ws.wrong.length === 1 && ws.wrong[0].reason === 'rain' && ws.rightFirstTime === 1);
+const early = createRun(training);
+early.advance(60);
+check('the clock does not count during turn time', early.phase() === 'turn time' && early.used === 0);
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

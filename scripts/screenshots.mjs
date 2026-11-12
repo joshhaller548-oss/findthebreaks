@@ -378,6 +378,45 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     expectThat(`desk ${tag} ${name}: no horizontal scroll`, overflow <= 0);
     if (width === 1360) await page.screenshot({ path: `${OUT}/16-desk-${name}-${tag}.png`, fullPage: true });
   }
+  if (width === 1360 || dark) {
+    // Play the training cargo: one wrong call on the rain, then right calls
+    await page.evaluate(() => { location.hash = '#/briefing/0'; });
+    await page.waitForSelector('.brief-actions a.gbtn');
+    await page.click('.brief-actions a.gbtn');
+    await page.waitForSelector('.tip');
+    expectThat(`desk ${tag}: a coaching tip pauses the clock at NOR`, (await page.$eval('.phase', (e) => e.textContent)) === 'Turn time');
+    await page.screenshot({ path: `${OUT}/17-desk-tip-${tag}.png`, fullPage: true });
+    await page.click('.tip .gbtn');
+    await page.click('.sb.controls .gbtn:nth-child(2)');
+    const playTo = async (sel) => {
+      for (let i = 0; i < 60; i++) {
+        if (await page.$('.tip')) await page.click('.tip .gbtn');
+        if (await page.$(sel)) return true;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return false;
+    };
+    expectThat(`desk ${tag}: the first ticket arrives`, await playTo('.ticket'));
+    const t1 = await page.$eval('.ticket h3', (e) => e.textContent);
+    expectThat(`desk ${tag}: the first ticket is the rain (${t1})`, t1 === 'Rain stopped loading');
+    await page.click('.ticket-calls .gbtn.ink');
+    await page.waitForSelector('.coach');
+    log(`desk coach ${tag}`, await page.$eval('.coach', (e) => e.innerText.replace(/\s+/g, ' ')));
+    await page.screenshot({ path: `${OUT}/17-desk-coach-${tag}.png`, fullPage: true });
+    await page.keyboard.press('e');
+    expectThat(`desk ${tag}: the Sunday ticket arrives after the rain`, await playTo('.ticket'));
+    await page.screenshot({ path: `${OUT}/17-desk-ticket-${tag}.png`, fullPage: true });
+    await page.click('.ticket-calls .gbtn.accent');
+    expectThat(`desk ${tag}: loading completes and the summary shows`, await playTo('.summary'));
+    const sum = await page.$eval('.summary', (e) => e.innerText.replace(/\s+/g, ' '));
+    log(`desk summary ${tag}`, sum.slice(0, 260));
+    expectThat(`desk ${tag}: the summary prices the wrong rain call against the true despatch`, sum.includes('Demurrage USD 18,750.00') && sum.includes('Despatch USD 1,041.67') && sum.includes('USD 19,791.67') && sum.includes('Right first time: 1 of 2'));
+    const lines = await page.$$eval('.st-line', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+    expectThat(`desk ${tag}: the statement has NOR, commencement, both entries and completion (${lines.length})`, lines.length === 5 && lines.at(-1).includes('118.00 used'));
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expectThat(`desk ${tag}: no horizontal scroll on the desk`, overflow <= 0);
+    await page.screenshot({ path: `${OUT}/17-desk-summary-${tag}.png`, fullPage: true });
+  }
   if (width === 1360 && !dark) {
     const allowed = await page.evaluate(() => { location.hash = '#/briefing/0'; return new Promise((r) => setTimeout(() => r([...document.querySelectorAll('.fx-terms > div')].map((d) => d.innerText.replace(/\s+/g, ' '))), 300)); });
     log('desk briefing', allowed.filter((t) => /allowed|NOR|Exceptions/.test(t)).join(' | '));

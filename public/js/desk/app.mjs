@@ -1,5 +1,5 @@
 // /laytime: the desk game. Screens are routed on the hash so the back
-// button works: #/ title, #/glossary, #/ledger, #/briefing/<n>.
+// button works: #/ title, #/glossary, #/ledger, #/briefing/<n>, #/desk/<n>.
 // The Excel and SQL drills live at /laytime/tools.
 
 import { h } from '../dom.mjs';
@@ -8,10 +8,16 @@ import { glossary } from './glossary.mjs';
 import { loadFixtures } from './fixtures.mjs';
 import { briefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
+import { deskScreen } from './desk-screen.mjs';
+
+// Fixtures whose desk is built so far: the training cargo. The twelve
+// fixtures open in a later slice.
+const PLAYABLE = new Set([0]);
 
 const stage = document.getElementById('stage');
 const dialog = document.getElementById('name-dialog');
 let items = [];
+let current = null;
 
 const btn = (cls, attrs, ...kids) => h(attrs.href ? 'a' : 'button', { class: `gbtn ${cls}`, ...(attrs.href ? {} : { type: 'button' }), ...attrs }, ...kids);
 const backBar = (label) => h('header', { class: 'screen-bar' },
@@ -41,7 +47,10 @@ function titleScreen() {
         name ? h('p', { class: 'greet' }, 'On the desk: ', h('strong', {}, name)) : null,
       ),
       h('nav', { class: 'title-actions', 'aria-label': 'Desk' },
-        btn('big ink', { href: `#/briefing/${next.n}` }, 'Start the next fixture', h('span', { class: 'sub' }, next.label)),
+        btn('big ink', { href: `#/briefing/${next.n}` },
+          next.training ? h('span', { class: 'tag-chip' }, 'Training cargo') : null,
+          'Start the next fixture',
+          h('span', { class: 'sub' }, next.training ? 'Learn the clock on one cargo first' : next.label)),
         h('div', { class: 'row' },
           btn('accent', { href: '#/ledger' }, 'Ledger'),
           btn('sea', { href: '#/glossary' }, 'Glossary')),
@@ -108,9 +117,13 @@ function briefingScreen(n) {
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, initials),
       h('blockquote', {}, h('p', {}, b.clause.quote)),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
-    h('div', { class: 'brief-actions' },
-      btn('big ink', { disabled: true, 'aria-describedby': 'desk-soon' }, 'Open the desk'),
-      h('p', { id: 'desk-soon', class: 'dnote' }, 'The desk opens in the next build. Until then, try the drills under Desk tools.')),
+    PLAYABLE.has(item.n)
+      ? h('div', { class: 'brief-actions' },
+        btn('big ink', { href: `#/desk/${item.n}` }, 'Open the desk'),
+        h('p', { class: 'dnote' }, 'The clock starts at NOR. Tickets arrive as the agent reports them.'))
+      : h('div', { class: 'brief-actions' },
+        btn('big ink', { disabled: true, 'aria-describedby': 'desk-soon' }, 'Open the desk', h('span', { class: 'sub' }, 'Coming soon')),
+        h('p', { id: 'desk-soon', class: 'dnote' }, 'This fixture\u2019s desk is coming soon. Start with the training cargo, or try the drills under Desk tools.')),
   );
 }
 
@@ -141,14 +154,24 @@ dialog.querySelector('form').addEventListener('submit', (e) => {
 
 // ---------- routing ----------
 
+function deskView(n) {
+  const item = items.find((it) => it.n === n);
+  if (!item || !PLAYABLE.has(n)) return notFound();
+  current = deskScreen(item, { onLeave: (why) => (why === 'again' ? render() : null) });
+  return current.el;
+}
+
 function render() {
+  current?.destroy();
+  current = null;
   const route = location.hash.replace(/^#\/?/, '');
   const [screen, arg] = route.split('/');
   const view = !screen ? titleScreen()
     : screen === 'glossary' ? glossaryScreen()
       : screen === 'ledger' ? ledgerScreen()
         : screen === 'briefing' ? briefingScreen(Number(arg))
-          : notFound();
+          : screen === 'desk' ? deskView(Number(arg))
+            : notFound();
   stage.replaceChildren(view);
   stage.dataset.screen = screen || 'title';
   if (screen) stage.scrollIntoView({ block: 'start' });
