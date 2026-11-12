@@ -109,7 +109,7 @@ p { margin: 0 0 0.75rem; }
 
 /* ---------- site chrome ---------- */
 
-header.site, footer.site, main.task {
+header.site, footer.site, main.task, main.page {
   max-width: 1280px;
   margin: 0 auto;
   padding-left: 24px;
@@ -123,6 +123,8 @@ header.site {
   padding-top: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
 }
 .brand {
   font: 600 1rem/1 var(--mono);
@@ -133,6 +135,18 @@ header.site {
 header.site nav { display: flex; gap: 1.25rem; font-size: 0.95rem; }
 header.site nav a { text-decoration: none; color: var(--ink-2); }
 header.site nav a[aria-current="page"] { color: var(--ink); border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
+
+/* ---------- landing and about: left aligned, prose width ---------- */
+
+main.page { padding-top: 32px; }
+main.page > * { max-width: 68ch; }
+main.page h1 { font-size: 1.35rem; font-weight: 500; line-height: 1.4; margin-bottom: 1rem; }
+main.page p { color: var(--ink-2); }
+.tasks { list-style: none; padding: 0; margin: 1.5rem 0 0; border-top: 1px solid var(--rule); }
+.tasks li { border-bottom: 1px solid var(--rule); }
+.tasks a { display: block; padding: 0.7rem 0; font: 500 1rem var(--mono); text-decoration: none; }
+.tasks a::after { content: ' \2192'; color: var(--accent); }
+.tasks a:hover { background: var(--surface-2); }
 footer.site {
   border-top: 1px solid var(--rule);
   padding-top: 18px;
@@ -409,7 +423,10 @@ table.data td.null { color: var(--muted); font-style: italic; }
 /* ---------- small screens ---------- */
 
 @media (max-width: 860px) {
-  header.site, footer.site, main.task { padding-left: 16px; padding-right: 16px; }
+  header.site, footer.site, main.task, main.page { padding-left: 16px; padding-right: 16px; }
+  header.site nav { gap: 1rem; }
+  main.page { padding-top: 24px; }
+  main.page h1 { font-size: 1.2rem; }
   .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .intro { padding-top: 20px; }
   h1 { font-size: 1.55rem; }

@@ -36,10 +36,11 @@ createServer(async (req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
   const file = await resolve(path);
   if (!file) {
-    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end(`Not found: ${path}\nOnly /reconciliation exists so far.\n`);
+    // As Vercel does: public/404.html for any path with no file
+    res.writeHead(404, { 'content-type': TYPES['.html'] });
+    res.end(await readFile(join(ROOT, '404.html')));
     return;
   }
   res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
   res.end(await readFile(file));
-}).listen(PORT, () => console.log(`http://localhost:${PORT}/reconciliation`));
+}).listen(PORT, () => console.log(`http://localhost:${PORT}/`));

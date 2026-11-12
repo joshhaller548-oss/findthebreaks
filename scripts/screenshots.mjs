@@ -329,6 +329,35 @@ for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconcilia
   await page.close();
 }
 
+// ---------- landing, about and 404, both widths and themes ----------
+for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 200], ['/no-such-page', '404', 404]]) {
+  for (const [width, dark] of [[1360, false], [400, false], [400, true]]) {
+    const page = await open({ width, height: 860, dark, mobile: width === 400 });
+    if (status === 404) {
+      // The browser logs the page's own 404 status; any other error still counts
+      page.removeAllListeners('console');
+      page.on('console', (m) => m.type() === 'error' && !(m.text().includes('404') && m.location().url === `${BASE}${path}`) && problems.push(`console: ${m.text()}`));
+    }
+    const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle0' });
+    expectThat(`${path} answers ${status}`, res.status() === status);
+    await noStrayText(page);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expectThat(`no horizontal scroll at ${width}px on ${path}`, overflow <= 0);
+    await page.screenshot({ path: `${OUT}/15-${name}-${width}${dark ? '-dark' : ''}.png`, fullPage: true });
+    if (width === 1360 && !dark) {
+      // Every link in the header, the body and the footer resolves
+      const links = await page.evaluate(() => [...document.querySelectorAll('a[href^="/"]')].map((a) => a.getAttribute('href')));
+      for (const href of [...new Set(links)]) {
+        const r = await fetch(`${BASE}${href}`);
+        expectThat(`${path}: link ${href} resolves`, r.ok);
+      }
+      const current = await page.evaluate(() => [...document.querySelectorAll('header.site [aria-current="page"]')].map((a) => a.textContent));
+      log(`${path} header`, `${links.length} links, current: ${current.join(', ') || 'none'}`);
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 if (problems.length) {
   console.log('\nPROBLEMS\n' + problems.join('\n'));

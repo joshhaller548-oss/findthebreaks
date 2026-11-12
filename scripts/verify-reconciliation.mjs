@@ -272,7 +272,8 @@ const vendored = readdirSync(new URL('public/vendor/', root));
 check(`notices name every vendored file (${vendored.join(', ')})`, vendored.every((f) => notices.includes(`vendor/${f}`)));
 check(`notices carry the installed versions (alasql ${alasql.version}, hyperformula ${HyperFormula.version})`, notices.includes(`AlaSQL ${alasql.version}`) && notices.includes(`HyperFormula ${HyperFormula.version}`));
 check('vendored file names carry the same versions', vendored.includes(`alasql-${alasql.version}.min.js`) && vendored.includes(`hyperformula-${HyperFormula.version}.full.min.js`));
-check('every page footer links source, licence and notices', ['public/reconciliation.html', 'public/laytime.html'].every((p) => /data-source-link/.test(txt(p)) && txt(p).includes('/LICENSE.txt') && txt(p).includes('/THIRD_PARTY_NOTICES.txt')));
+const htmlPages = readdirSync(new URL('public/', root)).filter((f) => f.endsWith('.html')).map((f) => `public/${f}`);
+check(`every page footer links source, licence and notices (${htmlPages.length} pages)`, htmlPages.every((p) => /data-source-link/.test(txt(p)) && txt(p).includes('/LICENSE.txt') && txt(p).includes('/THIRD_PARTY_NOTICES.txt')));
 
 // ---------- 9. house rules ----------
 
@@ -284,7 +285,7 @@ const walkFiles = (dir) => readdirSync(new URL(dir, root)).flatMap((f) => {
   if (rel.startsWith('public/vendor/')) return [];
   return statSync(new URL(rel, root)).isDirectory() ? walkFiles(`${rel}/`) : [rel];
 });
-const files = [...walkFiles('public/'), ...walkFiles('scripts/'), 'vercel.json', 'package.json'];
+const files = [...walkFiles('public/'), ...walkFiles('scripts/'), ...walkFiles('docs/'), 'vercel.json', 'package.json'];
 const dashed = files.filter((f) => !dashFree(readFileSync(new URL(f, root), 'utf8')));
 check(`no em or en dashes in ${files.length} site and script files`, dashed.length === 0, dashed.join(', '));
 
