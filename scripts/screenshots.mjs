@@ -37,6 +37,17 @@ const layExcel = (id) => {
 };
 const laySql = (id) => layDrills.find((d) => d.id === id).sql;
 
+// The desk's fixtures, built the way fixtures.mjs builds them, so the
+// browser run can be played with the engine's answers
+const { calculate: layCalc, deductions: layDed } = await import('../public/js/laytime/calc.mjs');
+const { createRun } = await import('../public/js/desk/run.mjs');
+const layKey = JSON.parse(readFileSync(new URL('data/laytime.key.json', root), 'utf8'));
+const deskItems = layData.tables.fixtures.map((f, i) => {
+  const st = layData.tables.stoppages.filter((x) => x.voyage_id === f.voyage_id);
+  return { n: i + 1, training: false, label: `Fixture ${i + 1}`, fixture: f, stoppages: st, result: layCalc(f, st), events: layDed(f, st),
+    owner: layData.tables.owner_statement.find((o) => o.voyage_id === f.voyage_id), ownerError: layKey.owner_errors.find((e) => e.voyage_id === f.voyage_id) ?? null };
+});
+
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
 const problems = [];
 const expectThat = (label, ok) => { if (!ok) problems.push(label); };
@@ -384,38 +395,89 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.waitForSelector('.brief-actions a.gbtn');
     await page.click('.brief-actions a.gbtn');
     await page.waitForSelector('.tip');
-    expectThat(`desk ${tag}: a coaching tip pauses the clock at NOR`, (await page.$eval('.phase', (e) => e.textContent)) === 'Turn time');
+    expectThat(`desk ${tag}: a coaching tip pauses the clock at NOR`, (await page.$eval('.tip h3', (e) => e.textContent)) === 'NOR is in' && (await page.$eval('.sb .sb-value.mono', (e) => e.textContent)) === 'Mon 1 Jun, 08:00');
     await page.screenshot({ path: `${OUT}/17-desk-tip-${tag}.png`, fullPage: true });
     await page.click('.tip .gbtn');
     await page.click('.sb.controls .gbtn:nth-child(2)');
     const playTo = async (sel) => {
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 160; i++) {
         if (await page.$('.tip')) await page.click('.tip .gbtn');
         if (await page.$(sel)) return true;
         await new Promise((r) => setTimeout(r, 250));
       }
       return false;
     };
-    expectThat(`desk ${tag}: the first ticket arrives`, await playTo('.ticket'));
+    // Click the option whose text contains `text`
+    const pickOption = async (text) => {
+      const opts = await page.$$('.ticket-options .gbtn');
+      for (const o of opts) if ((await o.evaluate((e) => e.innerText)).includes(text)) return o.click();
+      throw new Error(`no option with ${text}`);
+    };
+    expectThat(`desk ${tag}: the start ticket opens at NOR`, await playTo('.ticket.t-start'));
+    await page.screenshot({ path: `${OUT}/17-desk-start-${tag}.png`, fullPage: true });
+    await pickOption('when turn time runs out');
+    expectThat(`desk ${tag}: the first time ticket arrives`, await playTo('.ticket.t-time'));
     const t1 = await page.$eval('.ticket h3', (e) => e.textContent);
-    expectThat(`desk ${tag}: the first ticket is the rain (${t1})`, t1 === 'Rain stopped loading');
+    expectThat(`desk ${tag}: the first time ticket is the rain (${t1})`, t1 === 'Rain stopped loading');
     await page.click('.ticket-calls .gbtn.ink');
     await page.waitForSelector('.coach');
     log(`desk coach ${tag}`, await page.$eval('.coach', (e) => e.innerText.replace(/\s+/g, ' ')));
     await page.screenshot({ path: `${OUT}/17-desk-coach-${tag}.png`, fullPage: true });
     await page.keyboard.press('e');
-    expectThat(`desk ${tag}: the Sunday ticket arrives after the rain`, await playTo('.ticket'));
-    await page.screenshot({ path: `${OUT}/17-desk-ticket-${tag}.png`, fullPage: true });
+    expectThat(`desk ${tag}: the Sunday ticket arrives after the rain`, await playTo('.ticket.t-time'));
     await page.click('.ticket-calls .gbtn.accent');
-    expectThat(`desk ${tag}: loading completes and the summary shows`, await playTo('.summary'));
+    expectThat(`desk ${tag}: the settle ticket opens at completion`, await playTo('.ticket.t-settle'));
+    await page.screenshot({ path: `${OUT}/17-desk-settle-${tag}.png`, fullPage: true });
+    await pickOption('Despatch USD 1,041.67');
+    expectThat(`desk ${tag}: the recap card shows`, await playTo('.summary'));
     const sum = await page.$eval('.summary', (e) => e.innerText.replace(/\s+/g, ' '));
-    log(`desk summary ${tag}`, sum.slice(0, 260));
-    expectThat(`desk ${tag}: the summary prices the wrong rain call against the true despatch`, sum.includes('Demurrage USD 18,750.00') && sum.includes('Despatch USD 1,041.67') && sum.includes('USD 19,791.67') && sum.includes('Right first time: 1 of 2'));
+    log(`desk summary ${tag}`, sum.slice(0, 300));
+    expectThat(`desk ${tag}: the recap prices the wrong rain call against the true despatch`, sum.includes('Demurrage USD 18,750.00') && sum.includes('Despatch USD 1,041.67') && sum.includes('USD 19,791.67') && sum.includes('Right first time: 3 of 4'));
     const lines = await page.$$eval('.st-line', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
-    expectThat(`desk ${tag}: the statement has NOR, commencement, both entries and completion (${lines.length})`, lines.length === 5 && lines.at(-1).includes('118.00 used'));
+    expectThat(`desk ${tag}: the statement has NOR, the start, both entries and the settlement (${lines.length})`, lines.length === 5 && lines.at(-1).includes('Settled: Despatch USD 1,041.67'));
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expectThat(`desk ${tag}: no horizontal scroll on the desk`, overflow <= 0);
     await page.screenshot({ path: `${OUT}/17-desk-summary-${tag}.png`, fullPage: true });
+
+    // A fixture with a planted owner error, played clean from the engine's answers
+    const fx = deskItems.find((it) => it.fixture.voyage_id === 'VOY-2609');
+    const answers = createRun(fx).steps;
+    await page.evaluate((n) => { location.hash = `#/desk/${n}`; }, fx.n);
+    await page.waitForSelector('.desk-screen');
+    await page.click('.sb.controls .gbtn:nth-child(2)');
+    for (const tk of answers) {
+      const sel = { start: '.ticket.t-start', time: '.ticket.t-time', settle: '.ticket.t-settle', owner: '.ticket.t-owner' }[tk.type];
+      const arrived = await playTo(sel);
+      if (!arrived) log(`desk ${tag} waiting for ${tk.type} ${tk.id}`, await page.$eval('.desk-work', (e) => e.innerText.replace(/\s+/g, ' ').slice(0, 200)));
+      expectThat(`desk ${tag} fixture ${fx.n}: ${tk.type} ticket ${tk.id} arrives`, arrived);
+      if (tk.type === 'time') await page.keyboard.press(tk.answer === 'off' ? 'e' : 'c');
+      else if (tk.type === 'owner') {
+        await page.screenshot({ path: `${OUT}/18-desk-owner-${tag}.png`, fullPage: true });
+        await page.keyboard.press(tk.answer === 'dispute' ? 'd' : 'a');
+      } else await page.keyboard.press(String(tk.options.findIndex((o) => o.id === tk.answer) + 1));
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    const asked = await playTo('.explain-input');
+    if (!asked) log(`desk ${tag} stuck at`, await page.$eval('.desk-work', (e) => e.innerText.replace(/\s+/g, ' ').slice(0, 300)));
+    expectThat(`desk ${tag}: disputing the owner asks for a sentence`, asked);
+    await page.type('.explain-input', 'They counted the weekend window, which is excepted under SHEX EIU.');
+    await page.click('.t-explain .gbtn.ink');
+    await page.waitForSelector('.model-note');
+    const note = await page.$eval('.model-note', (e) => e.innerText);
+    expectThat(`desk ${tag}: the model note is the drill 8 note (${note.slice(11, 70)})`, note.includes(fx.ownerError.note));
+    await page.screenshot({ path: `${OUT}/18-desk-explain-${tag}.png`, fullPage: true });
+    await page.click('.t-explain .gbtn.ok');
+    expectThat(`desk ${tag}: the fixture recap shows`, await playTo('.summary'));
+    const fsum = await page.$eval('.summary', (e) => e.innerText.replace(/\s+/g, ' '));
+    expectThat(`desk ${tag}: a clean fixture run gets three stars and a zero difference`, fsum.includes('3 of 3 stars') || (await page.$eval('.summary .stars', (e) => e.getAttribute('aria-label'))) === '3 of 3 stars');
+    expectThat(`desk ${tag}: the recap counts every decision right (${createRun(fx).steps.length})`, fsum.includes(`Right first time: ${createRun(fx).steps.length} of ${createRun(fx).steps.length}`) && fsum.includes('Your calls match the true statement'));
+    await page.screenshot({ path: `${OUT}/18-desk-recap-${tag}.png`, fullPage: true });
+    await page.evaluate(() => { location.hash = '#/ledger'; });
+    await page.waitForSelector('.ledger-list');
+    const ledger = await page.$$eval('.ledger-list li.played', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+    log(`desk ledger ${tag}`, ledger.join(' | '));
+    expectThat(`desk ${tag}: the ledger lists the training cargo and the fixture`, ledger.length === 2);
+    await page.screenshot({ path: `${OUT}/18-desk-ledger-${tag}.png`, fullPage: true });
   }
   if (width === 1360 && !dark) {
     const allowed = await page.evaluate(() => { location.hash = '#/briefing/0'; return new Promise((r) => setTimeout(() => r([...document.querySelectorAll('.fx-terms > div')].map((d) => d.innerText.replace(/\s+/g, ' '))), 300)); });

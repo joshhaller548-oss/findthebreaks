@@ -10,9 +10,8 @@ import { briefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
 import { deskScreen } from './desk-screen.mjs';
 
-// Fixtures whose desk is built so far: the training cargo. The twelve
-// fixtures open in a later slice.
-const PLAYABLE = new Set([0]);
+// Every cargo is playable: the training cargo and the twelve fixtures
+const playable = (n) => items.some((it) => it.n === n);
 
 const stage = document.getElementById('stage');
 const dialog = document.getElementById('name-dialog');
@@ -45,6 +44,7 @@ function titleScreen() {
         wordmark(),
         h('p', { class: 'tagline' }, 'A game about laytime, breaks and the owner’s statement.'),
         name ? h('p', { class: 'greet' }, 'On the desk: ', h('strong', {}, name)) : null,
+        settledLine(),
       ),
       h('nav', { class: 'title-actions', 'aria-label': 'Desk' },
         btn('big ink', { href: `#/briefing/${next.n}` },
@@ -64,6 +64,24 @@ function titleScreen() {
   );
 }
 
+// Best run per cargo, from the ledger
+function bests() {
+  const by = new Map();
+  for (const e of profile.ledger()) {
+    const b = by.get(e.n);
+    if (!b) by.set(e.n, { ...e, runs: 1 });
+    else by.set(e.n, { ...(e.score > b.score ? e : b), runs: b.runs + 1 });
+  }
+  return by;
+}
+
+function settledLine() {
+  const b = bests();
+  if (!b.size) return null;
+  const total = [...b.values()].reduce((n, e) => n + e.score, 0);
+  return h('p', { class: 'greet' }, `Settled ${b.size} of ${items.length} \u00B7 best total ${total.toLocaleString('en-GB')}`);
+}
+
 function glossaryScreen() {
   return h('section', { class: 'screen glossary-screen', 'aria-labelledby': 'g-title' },
     backBar('Glossary'),
@@ -76,12 +94,25 @@ function glossaryScreen() {
 }
 
 function ledgerScreen() {
-  const runs = profile.ledger();
+  const b = bests();
+  const USD = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const star = (n) => h('span', { class: 'stars', 'aria-label': `${n} of 3 stars` }, '\u2605'.repeat(n), h('span', { class: 'off' }, '\u2605'.repeat(3 - n)));
+  const total = [...b.values()].reduce((n, e) => n + e.score, 0);
   return h('section', { class: 'screen ledger-screen', 'aria-labelledby': 'l-title' },
     backBar('Ledger'),
     h('h2', { id: 'l-title' }, 'Your ledger'),
-    runs.length
-      ? h('p', {}, `${runs.length} run${runs.length === 1 ? '' : 's'} settled.`)
+    b.size
+      ? h('div', { class: 'ledger' },
+        h('p', { class: 'screen-lede' }, `Best run on each cargo. Settled ${b.size} of ${items.length}, best total ${total.toLocaleString('en-GB')}. Kept in this browser only.`),
+        h('ol', { class: 'ledger-list' }, items.map((it) => {
+          const e = b.get(it.n);
+          return h('li', { class: e ? 'played' : 'open' },
+            h('a', { href: `#/briefing/${it.n}` },
+              h('span', { class: 'lg-name' }, it.training ? 'Training cargo' : `${it.label} \u00B7 ${it.fixture.vessel}`),
+              e ? star(e.stars) : h('span', { class: 'muted small' }, 'not played'),
+              h('span', { class: 'lg-score mono' }, e ? e.score.toLocaleString('en-GB') : ''),
+              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${e.difference_usd === 0 ? 'priced exactly' : `off by USD ${USD.format(Math.abs(e.difference_usd))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
+        })))
       : h('div', { class: 'empty' },
         h('p', {}, 'Nothing settled yet. Your best run on each fixture shows here.'),
         h('p', { class: 'muted small' }, 'The ledger lives in this browser only. Nobody else sees it.'),
@@ -117,7 +148,7 @@ function briefingScreen(n) {
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, initials),
       h('blockquote', {}, h('p', {}, b.clause.quote)),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
-    PLAYABLE.has(item.n)
+    playable(item.n)
       ? h('div', { class: 'brief-actions' },
         btn('big ink', { href: `#/desk/${item.n}` }, 'Open the desk'),
         h('p', { class: 'dnote' }, 'The clock starts at NOR. Tickets arrive as the agent reports them.'))
@@ -156,7 +187,7 @@ dialog.querySelector('form').addEventListener('submit', (e) => {
 
 function deskView(n) {
   const item = items.find((it) => it.n === n);
-  if (!item || !PLAYABLE.has(n)) return notFound();
+  if (!item) return notFound();
   current = deskScreen(item, { onLeave: (why) => (why === 'again' ? render() : null) });
   return current.el;
 }

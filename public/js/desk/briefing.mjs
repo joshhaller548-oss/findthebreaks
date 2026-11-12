@@ -106,7 +106,7 @@ export function briefing(item) {
       ['Despatch', `USD ${USD.format(halfRate)} a day, ${f.despatch_basis}`],
     ],
     targets: item.training
-      ? ['Call every ticket right.', 'Settle the training cargo.']
-      : ['Call every ticket right.', 'Settle the fixture.', 'Check the owner’s statement.'],
+      ? ['Call when laytime starts.', 'Call every stoppage and SHEX period.', 'Settle the money. No strike limit on training.']
+      : ['Call when laytime starts.', 'Call every stoppage and SHEX period.', 'Settle the money.', 'Accept or dispute the owner’s statement.', 'Three wrong calls and the head of operations takes over.'],
   };
 }

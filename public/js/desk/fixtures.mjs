@@ -10,11 +10,14 @@ const getJSON = (p) => fetch(p).then((r) => {
 });
 
 export async function loadFixtures() {
-  const [example, defaults, data] = await Promise.all([
+  const [example, defaults, data, key] = await Promise.all([
     getJSON('/data/laytime-worked-example.json'),
     getJSON('/config/laytime-defaults.json'),
     getJSON('/data/laytime.json'),
+    getJSON('/data/laytime.key.json'),
   ]);
+  // The planted owner errors and their model notes, as drill 8 uses them
+  const errors = Object.fromEntries(key.owner_errors.map((e) => [e.voyage_id, e]));
   const w = workedExample(example, defaults);
   const training = {
     n: 0,
@@ -39,6 +42,7 @@ export async function loadFixtures() {
       result: calculate(f, stoppages),
       events: deductions(f, stoppages),
       owner: owners[f.voyage_id] ?? null,
+      ownerError: errors[f.voyage_id] ?? null,
     };
   });
   return [training, ...fixtures];

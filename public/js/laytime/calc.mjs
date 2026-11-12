@@ -111,9 +111,10 @@ const cents = (minutes, ratePerDay, divisor) => {
   return Math.floor((2 * num + den) / (2 * den));
 };
 
-// `excepted` replaces the periods the terms take off the clock, for pricing
-// someone else's calls with the same rules; leave it out for the true answer.
-export function calculate(fixture, stoppages, { excepted: callsOff } = {}) {
+// `excepted` replaces the periods the terms take off the clock, and
+// `commenced` the time laytime started, for pricing someone else's calls
+// with the same rules. Leave them out for the true answer.
+export function calculate(fixture, stoppages, { excepted: callsOff, commenced: callStart } = {}) {
   const nor = toMin(fixture.nor_tendered);
   const loadStart = toMin(fixture.loading_commenced);
   const done = toMin(fixture.loading_completed);
@@ -122,7 +123,7 @@ export function calculate(fixture, stoppages, { excepted: callsOff } = {}) {
   const allowed = allowedExact;
 
   const viaTurn = nor + fixture.turn_time_hrs * 60;
-  const commenced = Math.min(viaTurn, loadStart);
+  const commenced = callStart ?? Math.min(viaTurn, loadStart);
   const span = [commenced, done];
   const own = stoppages.filter((s) => s.voyage_id === fixture.voyage_id).map((s) => ({ ...s, iv: [toMin(s.start_time), toMin(s.end_time)] }));
   const deductible = clip(own.filter((s) => !s.counts_against_laytime).map((s) => s.iv), span);
