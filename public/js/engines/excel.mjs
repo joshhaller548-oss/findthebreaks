@@ -21,6 +21,12 @@ export const letter = (index) => {
 
 const isError = (v) => v !== null && typeof v === 'object' && 'type' in v && 'value' in v;
 
+// Timestamps sit in the sheet as Excel serial numbers, days since 1899-12-30,
+// so subtracting two gives days, as in Excel. UTC throughout.
+const STAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+export const toSerial = (s) => Date.parse(`${s.replace(' ', 'T')}:00Z`) / 86400000 + 25569;
+export const serialToStamp = (n) => new Date(Math.round((n - 25569) * 1440) * 60000).toISOString().slice(0, 16).replace('T', ' ');
+
 // Where each frame column and the total cell live on the sheet
 export function layout(frame, tables) {
   const headers = Object.keys(tables[frame.base][0]);
@@ -56,7 +62,7 @@ export function createExcelEngine(HyperFormula, tables) {
     const sheets = {};
     for (const n of names) {
       const headers = Object.keys(tables[n][0]);
-      sheets[n] = [headers, ...tables[n].map((r) => headers.map((c) => r[c]))];
+      sheets[n] = [headers, ...tables[n].map((r) => headers.map((c) => (typeof r[c] === 'string' && STAMP.test(r[c]) ? toSerial(r[c]) : r[c])))];
     }
     return HyperFormula.buildFromSheets(
       sheets,
@@ -164,7 +170,9 @@ export function createExcelEngine(HyperFormula, tables) {
     const pick = (g, name) => {
       const b = headers.indexOf(name);
       if (b !== -1) return g.base[b];
-      return g.user[L.columns.findIndex((c) => c.name === name)];
+      const k = L.columns.findIndex((c) => c.name === name);
+      const v = g.user[k];
+      return L.columns[k].type === 'datetime' && typeof v === 'number' ? serialToStamp(v) : v;
     };
     return { ok: true, columns: [...frame.project], rows: rows.map((g) => frame.project.map((name) => pick(g, name))), notes, view };
   }

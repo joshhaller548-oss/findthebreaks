@@ -12,7 +12,7 @@
     "loading_completed": "2026-06-07 14:00"
   },
   "stoppages": [
-    { "voyage_id": "EXAMPLE", "start": "2026-06-03 09:00", "end": "2026-06-03 15:00", "reason": "rain", "counts_against_laytime": false }
+    { "voyage_id": "EXAMPLE", "start_time": "2026-06-03 09:00", "end_time": "2026-06-03 15:00", "reason": "rain", "counts_against_laytime": false }
   ],
   "contrast": { "shex_basis": "SHEX UU" }
 }

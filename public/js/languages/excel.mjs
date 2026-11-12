@@ -1,7 +1,7 @@
 // Excel tab. The user writes formulas for row 2 of one sheet; the engine
 // fills them down and the sheet shows the result, with kept rows marked.
 
-import { createExcelEngine, layout, letter } from '../engines/excel.mjs';
+import { createExcelEngine, layout, letter, serialToStamp } from '../engines/excel.mjs';
 import { h, loadScript, formatCell } from '../dom.mjs';
 import { fill } from '../check.mjs';
 
@@ -23,7 +23,8 @@ function roleText(c) {
   return `the ${c.name} for that row`;
 }
 
-function display(column, v) {
+function display(column, v, type) {
+  if (type === 'datetime' && typeof v === 'number') return serialToStamp(v);
   if (v === true) return 'TRUE';
   if (v === false) return 'FALSE';
   if (isError(v)) return v.value;
@@ -35,7 +36,7 @@ function sheetView(L, tables, out) {
   const view = out?.view;
   const errCell = out && !out.ok ? out.error?.cell : null;
   const base = tables[L.base];
-  const cols = [...L.headers.map((name, i) => ({ name, letter: letter(i), user: false })), ...L.columns.map((c) => ({ name: c.name, letter: c.letter, user: true }))];
+  const cols = [...L.headers.map((name, i) => ({ name, letter: letter(i), user: false })), ...L.columns.map((c) => ({ name: c.name, letter: c.letter, user: true, type: c.type }))];
   const head = h('tr', {}, h('th', { class: 'corner', scope: 'col' }, ''), cols.map((c) => h('th', { scope: 'col', class: c.user ? 'user' : null }, c.letter)));
   const names = h('tr', { class: 'names' }, h('th', { scope: 'row', class: 'rownum' }, '1'), cols.map((c) => h('td', { class: c.user ? 'user' : null }, c.name)));
   const body = base.map((r, i) => {
@@ -48,7 +49,7 @@ function sheetView(L, tables, out) {
         const v = c.user ? g?.user?.[k - L.headers.length] : r[c.name];
         const cell = `${c.letter}${excelRow}`;
         const cls = [c.user ? 'user' : '', typeof v === 'number' ? 'num' : '', isError(v) ? 'err' : '', cell === errCell ? 'err-focus' : ''].filter(Boolean).join(' ');
-        return h('td', { class: cls || null }, display(c.name, v));
+        return h('td', { class: cls || null }, display(c.name, v, c.type));
       }),
     );
   });
@@ -78,7 +79,12 @@ function sheetView(L, tables, out) {
 export const excelLanguage = {
   id: 'excel',
   label: 'Excel',
-  note: 'Write each formula for row 2. It is filled down to the last row, like double-clicking the fill handle. The sheets are cargoes, invoices and counterparties. Press Enter to run.',
+  note: (tables) => {
+    const names = Object.keys(tables);
+    const list = names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    const hasTimes = names.some((n) => tables[n].some((r) => Object.values(r).some((v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(v))));
+    return `Write each formula for row 2. It is filled down to the last row, like double-clicking the fill handle. The sheets are ${list}.${hasTimes ? ' Times are Excel serial numbers, so subtracting two gives days.' : ''} Press Enter to run.`;
+  },
   async load(tables) {
     await loadScript('/vendor/hyperformula-3.5.0.full.min.js');
     const HF = window.HyperFormula?.HyperFormula ?? window.HyperFormula;

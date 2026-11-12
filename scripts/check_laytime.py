@@ -101,7 +101,7 @@ def simulate(f, stops):
     commenced = min(nor + timedelta(hours=f["turn_time_hrs"]), load_start)
     basis = f["shex_basis"]
     in_window = window_test(f["shex_window"]) if basis != "SHINC" else (lambda dt: False)
-    spans = [(at(s["start"]), at(s["end"]), s["counts_against_laytime"]) for s in stops]
+    spans = [(at(s["start_time"]), at(s["end_time"]), s["counts_against_laytime"]) for s in stops]
 
     def stopped(dt):
         return any(a <= dt < b for a, b, _ in spans)
@@ -216,7 +216,7 @@ FIELDS = ["voyage_id", "vessel", "cargo_mt", "load_rate_mt_per_day", "shex_basis
           "waiting_for_berth", "demurrage_rate_usd_per_day", "turn_time_hrs", "nor_tendered", "loading_commenced", "loading_completed"]
 check("12 fixtures", len(fixtures) == 12, str(len(fixtures)))
 check("fixture columns as specified", all(list(f) == FIELDS for f in fixtures))
-check("stoppage columns as specified", all(list(s) == ["voyage_id", "start", "end", "reason", "counts_against_laytime"] for s in stoppages))
+check("stoppage columns as specified", all(list(s) == ["voyage_id", "start_time", "end_time", "reason", "counts_against_laytime"] for s in stoppages))
 check("every SHEX fixture has a readable window; SHINC has none", all((f["shex_basis"] == "SHINC") == (f["shex_window"] is None) for f in fixtures) and all(window_test(f["shex_window"]) for f in fixtures if f["shex_window"]))
 bases = {b: sum(f["shex_basis"] == b for f in fixtures) for b in ("SHEX EIU", "SHEX UU", "SHINC")}
 check("all three SHEX bases are used", all(bases.values()), str(bases))
@@ -245,27 +245,77 @@ check("berth congestion counts only on fixtures with a waiting for berth clause"
 check("counts_against_laytime follows the rules (weather, shifting and ship's breakdown excepted; congestion counts under a WIBON or waiting clause; holidays excepted unless SHINC)", all(s["counts_against_laytime"] == rule(s) for s in stoppages))
 reasons = {s["reason"] for s in stoppages}
 check("every stoppage reason from the brief's list appears, and nothing else", reasons == {"rain", "swell", "berth congestion", "shifting", "breakdown", "public holiday"}, ", ".join(sorted(reasons)))
-check("berth congestion only ever sits in waiting time before loading, where it counts", all(at(s["end"]) <= at(by_voyage[s["voyage_id"]]["loading_commenced"]) and s["counts_against_laytime"] for s in stoppages if s["reason"] == "berth congestion"))
+check("berth congestion only ever sits in waiting time before loading, where it counts", all(at(s["end_time"]) <= at(by_voyage[s["voyage_id"]]["loading_commenced"]) and s["counts_against_laytime"] for s in stoppages if s["reason"] == "berth congestion"))
 
 clean = True
 for f in fixtures:
-    own = sorted([s for s in stoppages if s["voyage_id"] == f["voyage_id"]], key=lambda s: s["start"])
+    own = sorted([s for s in stoppages if s["voyage_id"] == f["voyage_id"]], key=lambda s: s["start_time"])
     commenced = min(at(f["nor_tendered"]) + timedelta(hours=f["turn_time_hrs"]), at(f["loading_commenced"]))
     for s in own:
-        if not (commenced <= at(s["start"]) < at(s["end"]) <= at(f["loading_completed"])):
+        if not (commenced <= at(s["start_time"]) < at(s["end_time"]) <= at(f["loading_completed"])):
             clean = False
     for a, b in zip(own, own[1:]):
-        if at(a["end"]) > at(b["start"]):
+        if at(a["end_time"]) > at(b["start_time"]):
             clean = False
     if f["shex_window"]:
         inside = window_test(f["shex_window"])
         for s in own:
-            dt = at(s["start"])
-            while dt < at(s["end"]):
+            dt = at(s["start_time"])
+            while dt < at(s["end_time"]):
                 if inside(dt):
                     clean = False
                 dt += MINUTE
 check("stoppages sit inside laytime, never overlap each other, and never overlap a SHEX window", clean)
+
+# ---------- 2b. the SHEX periods table ----------
+
+section("2b. SHEX periods, as the statement of facts lists them")
+periods = data["shex_periods"]
+check("SHEX period columns as specified", all(list(p) == ["voyage_id", "start_time", "end_time", "phase", "loading_under_way"] for p in periods))
+check("no SHEX periods for SHINC fixtures", all(by_voyage[p["voyage_id"]]["shex_basis"] != "SHINC" for p in periods))
+table_ok = True
+for f in fixtures:
+    if f["shex_basis"] == "SHINC":
+        continue
+    inside = window_test(f["shex_window"])
+    load_start, done = at(f["loading_commenced"]), at(f["loading_completed"])
+    commenced = min(at(f["nor_tendered"]) + timedelta(hours=f["turn_time_hrs"]), load_start)
+    stops = [(at(s["start_time"]), at(s["end_time"])) for s in stoppages if s["voyage_id"] == f["voyage_id"]]
+    rows = [p for p in periods if p["voyage_id"] == f["voyage_id"]]
+    # What each minute should be, worked out from the window text alone
+    want = {}
+    dt = commenced
+    while dt < done + timedelta(days=7):
+        if inside(dt):
+            if dt < done:
+                want[dt] = ("laytime", dt >= load_start and not any(a <= dt < b for a, b in stops))
+            else:
+                want[dt] = ("after completion", False)
+        dt += MINUTE
+    got = {}
+    for p in rows:
+        dt = at(p["start_time"])
+        while dt < at(p["end_time"]):
+            if dt in got:
+                table_ok = False
+            got[dt] = (p["phase"], p["loading_under_way"])
+            dt += MINUTE
+    if got != want:
+        table_ok = False
+check("every SHEX minute inside laytime and in the week after completion is listed once, with the right phase and loading flag", table_ok)
+
+ats_ok = True
+for f in fixtures:
+    k = key["voyages"][f["voyage_id"]]
+    if f["despatch_basis"] != "all time saved" or k["result"] != "despatch":
+        continue
+    saved = -k["balance_min"]
+    done = at(f["loading_completed"])
+    after = [p for p in periods if p["voyage_id"] == f["voyage_id"] and p["phase"] == "after completion" and at(p["start_time"]) < done + timedelta(minutes=saved)]
+    one_step = saved + sum(minutes(at(p["start_time"]), at(p["end_time"])) for p in after)
+    if len(after) > 1 or one_step != k["time_saved_min"]:
+        ats_ok = False
+check("all time saved is a one-step sum: laytime saved plus the after-completion period that starts before it runs out", ats_ok)
 
 # ---------- 3. every voyage against the key ----------
 
@@ -292,7 +342,7 @@ TIMELINE = ["cargo_mt", "load_rate_mt_per_day", "demurrage_rate_usd_per_day", "t
 for g, ids in key["groups"].items():
     fs = [by_voyage[i] for i in ids]
     same = all([f[x] for x in TIMELINE] == [fs[0][x] for x in TIMELINE] for f in fs)
-    stops = [[(s["start"], s["end"], s["reason"]) for s in stoppages if s["voyage_id"] == i] for i in ids]
+    stops = [[(s["start_time"], s["end_time"], s["reason"]) for s in stoppages if s["voyage_id"] == i] for i in ids]
     same = same and all(x == stops[0] for x in stops)
     answers = [(mine[i]["result"], mine[i]["amount_usd"]) for i in ids]
     terms = " / ".join(f"{by_voyage[i]['shex_basis']}, {by_voyage[i]['despatch_basis']}, {by_voyage[i]['shex_window'] or 'no window'}" for i in ids)
@@ -321,7 +371,7 @@ def classify(o):
         return "clock_from_nor"
     if f["shex_basis"] == "SHEX EIU" and extra == r["shex_excepted_min"] and extra > 0:
         return "counted_shex_window"
-    if any(s["reason"] in ("rain", "swell") and extra == minutes(at(s["start"]), at(s["end"])) for s in stops):
+    if any(s["reason"] in ("rain", "swell") and extra == minutes(at(s["start_time"]), at(s["end_time"])) for s in stops):
         return "omitted_weather"
     return "unexplained"
 
@@ -334,6 +384,35 @@ owner_sums = all(
     for o in wrong)
 check("on those three the owner's arithmetic is right; the error is in the time, as in real disputes", owner_sums)
 check("all three overstate time used, so the owner claims too much demurrage", all(o["result"] == "demurrage" and int(Fraction(str(o["laytime_used_hrs"])) * 60) > mine[o["voyage_id"]]["used_min"] for o in wrong))
+
+# ---------- 6. the drill answer key ----------
+
+section("6. Drill answer key, against this minute count")
+dk = load("public/data/laytime.drills.key.json")["expected"]
+
+
+def close(a, b):
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(Decimal(str(a)) - Decimal(str(b))) < Decimal("0.01")
+    return str(a).lower() == str(b).lower()
+
+
+def rows_match(drill, build):
+    want = sorted((build(vid) for vid in mine), key=lambda r: r[0])
+    got = sorted((tuple(r) for r in dk[str(drill)]["rows"]), key=lambda r: r[0])
+    return len(want) == len(got) and all(len(w) == len(g) and all(close(x, y) for x, y in zip(w, g)) for w, g in zip(want, got))
+
+
+check("drill 1 laytime allowed, hours", rows_match(1, lambda i: (i, mine[i]["allowed_min"] / 60)))
+check("drill 2 laytime commenced", rows_match(2, lambda i: (i, mine[i]["laytime_commenced"])))
+check("drill 3 elapsed, hours", rows_match(3, lambda i: (i, mine[i]["elapsed_min"] / 60)))
+check("drill 4 deductible stoppages, hours", rows_match(4, lambda i: (i, mine[i]["deductible_stoppage_min"] / 60)))
+check("drill 5 laytime used and result", rows_match(5, lambda i: (i, mine[i]["used_min"] / 60, mine[i]["result"])))
+check("drill 6 result and amount", rows_match(6, lambda i: (i, mine[i]["result"], float(mine[i]["amount_usd"]))))
+owner_rows = sorted((o["voyage_id"], o["laytime_used_hrs"], mine[o["voyage_id"]]["used_min"] / 60, o["laytime_used_hrs"] - mine[o["voyage_id"]]["used_min"] / 60)
+                    for o in owner if Fraction(str(o["laytime_used_hrs"])) * 60 != mine[o["voyage_id"]]["used_min"])
+got7 = sorted(tuple(r) for r in dk["7"]["rows"])
+check("drill 7 owner disagreements", len(owner_rows) == len(got7) and all(all(close(x, y) for x, y in zip(w, g)) for w, g in zip(owner_rows, got7)), ", ".join(r[0] for r in owner_rows))
 
 print(f"\n{passes} passed, {failures} failed.")
 sys.exit(1 if failures else 0)

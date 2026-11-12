@@ -122,7 +122,7 @@ export function calculate(fixture, stoppages) {
   const viaTurn = nor + fixture.turn_time_hrs * 60;
   const commenced = Math.min(viaTurn, loadStart);
   const span = [commenced, done];
-  const own = stoppages.filter((s) => s.voyage_id === fixture.voyage_id).map((s) => ({ ...s, iv: [toMin(s.start), toMin(s.end)] }));
+  const own = stoppages.filter((s) => s.voyage_id === fixture.voyage_id).map((s) => ({ ...s, iv: [toMin(s.start_time), toMin(s.end_time)] }));
   const deductible = clip(own.filter((s) => !s.counts_against_laytime).map((s) => s.iv), span);
   const anyStop = union(own.map((s) => s.iv));
 
@@ -185,4 +185,49 @@ export function workedExample(example, defaults, overrides = {}) {
     ...overrides,
   };
   return { fixture, result: calculate(fixture, example.stoppages) };
+}
+
+// SHEX periods as a statement of facts lists them: each window inside
+// laytime, split where loading was or was not under way, then each window
+// in the week after completion, which only all time saved needs.
+export const AFTER_DAYS = 7;
+export function shexPeriods(fixture, stoppages) {
+  if (fixture.shex_basis === 'SHINC') return [];
+  const nor = toMin(fixture.nor_tendered);
+  const loadStart = toMin(fixture.loading_commenced);
+  const done = toMin(fixture.loading_completed);
+  const commenced = Math.min(nor + fixture.turn_time_hrs * 60, loadStart);
+  const anyStop = union(stoppages.filter((s) => s.voyage_id === fixture.voyage_id).map((s) => [toMin(s.start_time), toMin(s.end_time)]));
+  const rows = [];
+  for (const iv of clip(windowInstances(fixture.shex_window, commenced, done), [commenced, done])) {
+    const worked = subtract(clip([iv], [loadStart, done]), anyStop);
+    const idle = subtract([iv], worked);
+    for (const [a, b] of worked) rows.push({ a, b, under: true });
+    for (const [a, b] of idle) rows.push({ a, b, under: false });
+  }
+  rows.sort((x, y) => x.a - y.a);
+  const out = rows.map(({ a, b, under }) => ({ voyage_id: fixture.voyage_id, start_time: fromMin(a), end_time: fromMin(b), phase: 'laytime', loading_under_way: under }));
+  for (const [a, b] of clip(windowInstances(fixture.shex_window, done, done + AFTER_DAYS * 1440), [done, done + AFTER_DAYS * 1440])) {
+    out.push({ voyage_id: fixture.voyage_id, start_time: fromMin(a), end_time: fromMin(b), phase: 'after completion', loading_under_way: false });
+  }
+  return out;
+}
+
+// Every period that came off the clock, for showing a calculation line by
+// line: deductible stoppages, and SHEX time excepted under the fixture's basis.
+export function deductions(fixture, stoppages) {
+  const r = calculate(fixture, stoppages);
+  const commenced = toMin(r.laytime_commenced);
+  const done = toMin(fixture.loading_completed);
+  const out = [];
+  for (const s of stoppages.filter((x) => x.voyage_id === fixture.voyage_id && !x.counts_against_laytime)) {
+    const [a, b] = [Math.max(commenced, toMin(s.start_time)), Math.min(done, toMin(s.end_time))];
+    if (b > a) out.push({ kind: 'stoppage', label: s.reason, start: a, end: b, minutes: b - a });
+  }
+  for (const p of shexPeriods(fixture, stoppages).filter((x) => x.phase === 'laytime')) {
+    const excepted = fixture.shex_basis === 'SHEX EIU' || !p.loading_under_way;
+    const [a, b] = [toMin(p.start_time), toMin(p.end_time)];
+    out.push({ kind: 'shex', label: fixture.shex_basis, start: a, end: b, minutes: b - a, excepted, loading_under_way: p.loading_under_way });
+  }
+  return out.sort((x, y) => x.start - y.start);
 }

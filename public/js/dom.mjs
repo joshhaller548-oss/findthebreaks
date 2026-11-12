@@ -36,6 +36,8 @@ const MONEY = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximum
 
 export function formatCell(column, v) {
   if (v === null || v === undefined) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? String(v) : v.toISOString().slice(0, 16).replace('T', ' ');
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
   if (typeof v === 'number') {
     if (/price/.test(column)) return MONEY.format(v);
     if (/usd/.test(column) && !Number.isInteger(v)) return MONEY.format(v);

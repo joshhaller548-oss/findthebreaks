@@ -9,7 +9,10 @@ const MOBILE = '(max-width: 860px)';
 
 export function mountTaskPage(cfg) {
   const { task, drills, data, key, languages, counts, els, panels = {}, onProgress = () => {} } = cfg;
-  const pitfalls = key.pitfalls.map((p) => ({ ...p, ...cfg.pitfalls.find((q) => q.drill === p.drill && q.id === p.id) }));
+  // Ids repeat across languages, so match on all three
+  const pitfalls = key.pitfalls.map((p) => ({ ...p, ...cfg.pitfalls.find((q) => q.drill === p.drill && q.id === p.id && q.lang === p.lang) }));
+  // A free-text drill is not in any one language
+  const langOf = (d) => (d.kind === 'text' ? 'text' : state.lang);
   const byId = new Map(drills.map((d) => [d.id, d]));
   const text = (s) => fill(s || '', counts);
 
@@ -47,7 +50,7 @@ export function mountTaskPage(cfg) {
     const items = [];
     for (const d of drills) {
       const open = d.id === state.drillId;
-      const status = store.status(task, d.id, state.lang);
+      const status = store.status(task, d.id, langOf(d));
       items.push(h('li', { class: `drill${open ? ' open' : ''}${d.key ? ' key' : ''}` },
         h('button', {
           class: 'drill-head',
@@ -60,7 +63,7 @@ export function mountTaskPage(cfg) {
           h('span', { class: 'tag' }, d.tag),
           statusMark(status),
         ),
-        d.key ? h('p', { class: 'key-flag' }, 'The most important drill on the site') : null,
+        d.key ? h('p', { class: 'key-flag' }, d.keyFlag || 'The most important drill on the site') : null,
         h('div', { class: 'drill-body', id: `drill-body-${d.id}`, hidden: !open }, h('p', {}, text(d.question))),
       ));
       if (panels[d.id]) items.push(h('li', { class: 'panel-item' }, panels[d.id]()));
@@ -123,6 +126,16 @@ export function mountTaskPage(cfg) {
       els.work.replaceChildren(tabs, head, timedIntro(d));
       return;
     }
+    if (d.kind === 'text') {
+      els.work.replaceChildren(head, h('p', { class: 'question' }, text(d.question)), cfg.renderTextDrill(d, {
+        status: () => store.status(task, d.id, 'text'),
+        saved: () => store.lastAnswer(task, d.id, 'text'),
+        save: (value) => store.saveAnswer(task, d.id, 'text', value),
+        solve: () => { store.markSolved(task, d.id, 'text'); renderList(); onProgress(); },
+        statusInAny: (id) => store.statusInAny(task, id),
+      }));
+      return;
+    }
 
     const target = currentDrill();
     const parts = [tabs, head];
@@ -161,7 +174,7 @@ export function mountTaskPage(cfg) {
     parts.push(
       hint,
       lang.instructions ? lang.instructions(target, data.tables) : null,
-      h('p', { class: 'engine-note' }, lang.note),
+      h('p', { class: 'engine-note' }, typeof lang.note === 'function' ? lang.note(data.tables) : lang.note),
       editor.input,
       h('div', { class: 'actions' }, runBtn, hintBtn, answerBtn),
       answer,

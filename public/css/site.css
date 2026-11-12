@@ -490,3 +490,25 @@ table.sheet tr.total td.label { text-align: right; color: var(--muted); }
   .formula-row .formula { grid-column: 1 / -1; border-top: 1px solid var(--rule); }
 }
 .sheet-caption { font: 500 0.75rem var(--mono); color: var(--ink-2); margin: 0 0 0.3rem; }
+
+/* ---------- laytime page ---------- */
+
+.worked { margin-top: 1.4rem; max-width: 80ch; }
+.terms { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 1rem; margin: 0 0 0.8rem; font-size: 0.93rem; border: 1px solid var(--rule-strong); padding: 0.45rem 0.8rem; background: var(--surface); }
+.terms dt { font: 600 0.78rem/1.6 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.terms dd { margin: 0; font-family: var(--mono); font-size: 0.88rem; }
+.code.calc { font-size: 0.8rem; line-height: 1.55; }
+.contrast { max-width: 80ch; margin: 1.2rem 0 1.6rem; }
+.contrast-line { font: 600 0.95rem var(--mono); color: var(--ink); border-top: 1px solid var(--rule); padding-top: 0.6rem; }
+.how { max-width: 80ch; }
+.rules { margin: 0.4rem 0 0.8rem; font-size: 0.93rem; }
+.rules summary { cursor: pointer; font-weight: 500; }
+.rules ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.text-drill .text-item { display: grid; gap: 0.3rem; margin-bottom: 0.8rem; }
+.editor.short { min-height: 3.2rem; }
+.model-note { font-size: 0.92rem; background: var(--ok-soft); border: 1px solid var(--ok); padding: 0.45rem 0.7rem; margin: 0; }
+@media (max-width: 860px) {
+  .terms { grid-template-columns: 1fr; }
+  /* On a phone the worked example wraps rather than hiding its last figures off to the side */
+  .code.calc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.72rem; }
+}

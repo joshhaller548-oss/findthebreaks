@@ -14,7 +14,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { calculate, toMin, fromMin, windowInstances, union, clip, length } from '../public/js/laytime/calc.mjs';
+import { calculate, shexPeriods, toMin, fromMin, windowInstances, union, clip, length } from '../public/js/laytime/calc.mjs';
 
 const SEED = 20260601;
 function rng(seed) {
@@ -102,7 +102,7 @@ function makeTimeline(windowsToAvoid) {
   const avoid = union(windowsToAvoid.flatMap((w) => windowInstances(w, nor - 1440, done + 1440)));
 
   const stoppages = [];
-  const taken = () => union([...avoid, ...stoppages.map((s) => [toMin(s.start), toMin(s.end)])]);
+  const taken = () => union([...avoid, ...stoppages.map((s) => [toMin(s.start_time), toMin(s.end_time)])]);
   const place = (reason, lo, hi, minLen, maxLen) => {
     for (let tries = 0; tries < 40; tries++) {
       const len = int(minLen / HALF, maxLen / HALF) * HALF;
@@ -110,7 +110,7 @@ function makeTimeline(windowsToAvoid) {
       const iv = [start, start + len];
       if (start < lo || iv[1] > hi) continue;
       if (length(clip(taken(), [iv[0] - 60, iv[1] + 60])) > 0) continue;
-      stoppages.push({ start: iso(iv[0]), end: iso(iv[1]), reason });
+      stoppages.push({ start_time: iso(iv[0]), end_time: iso(iv[1]), reason });
       return true;
     }
     return false;
@@ -121,17 +121,17 @@ function makeTimeline(windowsToAvoid) {
   // Waiting for berth before loading starts: counts, a distractor
   const commenced = Math.min(nor + turn * 60, loadStart);
   if (loadStart - commenced >= 6 * 60 && rand() < 0.7) place('berth congestion', commenced, loadStart, 3 * 60, loadStart - commenced);
-  stoppages.sort((a, b) => a.start.localeCompare(b.start));
+  stoppages.sort((a, b) => a.start_time.localeCompare(b.start_time));
   return { cargo, rate, nor, turn, loadStart, done, stoppages };
 }
 
 function addHoliday(tl, windowsToAvoid) {
-  const avoid = union([...windowsToAvoid.flatMap((w) => windowInstances(w, tl.nor - 1440, tl.done + 1440)), ...tl.stoppages.map((s) => [toMin(s.start), toMin(s.end)])]);
+  const avoid = union([...windowsToAvoid.flatMap((w) => windowInstances(w, tl.nor - 1440, tl.done + 1440)), ...tl.stoppages.map((s) => [toMin(s.start_time), toMin(s.end_time)])]);
   const first = Math.ceil(tl.loadStart / 1440) * 1440;
   for (let d = first; d + 1440 <= tl.done; d += 1440) {
     if (length(clip(avoid, [d - 60, d + 1440 + 60])) === 0) {
-      tl.stoppages.push({ start: iso(d), end: iso(d + 1440), reason: 'public holiday' });
-      tl.stoppages.sort((a, b) => a.start.localeCompare(b.start));
+      tl.stoppages.push({ start_time: iso(d), end_time: iso(d + 1440), reason: 'public holiday' });
+      tl.stoppages.sort((a, b) => a.start_time.localeCompare(b.start_time));
       return true;
     }
   }
@@ -253,13 +253,13 @@ function planErrors({ fixtures, stoppages, results }) {
       if (r.commenced_on !== 'turn time' || !claims(r, f.turn_time_hrs * 60)) return false;
       // Nothing excepted between NOR and commencement, so the error is exactly the turn time
       const between = [toMin(f.nor_tendered), toMin(r.laytime_commenced)];
-      const ex = [...stopsOf(f).map((x) => [toMin(x.start), toMin(x.end)]), ...(f.shex_window ? windowInstances(f.shex_window, between[0], between[1]) : [])];
+      const ex = [...stopsOf(f).map((x) => [toMin(x.start_time), toMin(x.end_time)]), ...(f.shex_window ? windowInstances(f.shex_window, between[0], between[1]) : [])];
       return length(clip(ex, between)) === 0;
     }, (f) => ({ type: 'clock_from_nor', extra_min: f.turn_time_hrs * 60 })) &&
-    take((f, r) => stopsOf(f).some((x) => (x.reason === 'rain' || x.reason === 'swell') && claims(r, toMin(x.end) - toMin(x.start))),
+    take((f, r) => stopsOf(f).some((x) => (x.reason === 'rain' || x.reason === 'swell') && claims(r, toMin(x.end_time) - toMin(x.start_time))),
       (f, r) => {
-        const x = stopsOf(f).find((y) => (y.reason === 'rain' || y.reason === 'swell') && claims(r, toMin(y.end) - toMin(y.start)));
-        return { type: 'omitted_weather', extra_min: toMin(x.end) - toMin(x.start), stoppage: { start: x.start, end: x.end, reason: x.reason } };
+        const x = stopsOf(f).find((y) => (y.reason === 'rain' || y.reason === 'swell') && claims(r, toMin(y.end_time) - toMin(y.start_time)));
+        return { type: 'omitted_weather', extra_min: toMin(x.end_time) - toMin(x.start_time), stoppage: { start_time: x.start_time, end_time: x.end_time, reason: x.reason } };
       });
   return ok ? errors : null;
 }
@@ -301,7 +301,7 @@ const statement = (f, r, over = {}) => {
 const NOTES = {
   counted_shex_window: (f) => `Counted the ${f.shex_window} window, which is excepted under ${f.shex_basis}.`,
   clock_from_nor: (f) => `Started laytime at NOR, ${f.nor_tendered}, instead of after the ${f.turn_time_hrs} hour turn time.`,
-  omitted_weather: (f, e) => `Left out the ${e.stoppage.reason} stoppage from ${e.stoppage.start} to ${e.stoppage.end}, which does not count on a weather working day basis.`,
+  omitted_weather: (f, e) => `Left out the ${e.stoppage.reason} stoppage from ${e.stoppage.start_time} to ${e.stoppage.end_time}, which does not count on a weather working day basis.`,
 };
 for (const e of errors) e.note = NOTES[e.type](fixtures.find((f) => f.voyage_id === e.voyage_id), e);
 
@@ -313,11 +313,27 @@ const owner_statement = fixtures.map((f) => {
   return statement(f, r, { used_min: r.used_min + e.extra_min });
 });
 
+// ---------- SHEX periods, as the statement of facts lists them ----------
+
+const shex_periods = fixtures.flatMap((f) => shexPeriods(f, stoppages));
+
+// All time saved has to be workable in one step in SQL or Excel: time saved
+// is laytime saved plus any after-completion SHEX period that starts before
+// completion + laytime saved. That holds when at most one such period does.
+for (const f of fixtures) {
+  const r = results[f.voyage_id];
+  if (f.despatch_basis !== ATS || r.result !== 'despatch') continue;
+  const saved = -r.balance_min;
+  const after = shex_periods.filter((p) => p.voyage_id === f.voyage_id && p.phase === 'after completion' && toMin(p.start_time) < toMin(f.loading_completed) + saved);
+  const oneStep = saved + after.reduce((n, p) => n + toMin(p.end_time) - toMin(p.start_time), 0);
+  if (after.length > 1 || oneStep !== r.time_saved_min) throw new Error(`${f.voyage_id}: all time saved is not a one-step sum`);
+}
+
 // ---------- write ----------
 
 const groups = {};
 TERMS.forEach((t, i) => { if (t.group) (groups[t.group] ||= []).push(fixtures[i].voyage_id); });
-const data = { generated_by: 'scripts/generate-laytime.mjs', seed: SEED, tables: { fixtures, stoppages, owner_statement } };
+const data = { generated_by: 'scripts/generate-laytime.mjs', seed: SEED, tables: { fixtures, stoppages, shex_periods, owner_statement } };
 const key = {
   generated_by: 'scripts/generate-laytime.mjs',
   seed: SEED,
@@ -330,5 +346,5 @@ key.fingerprint = createHash('sha256').update(JSON.stringify({ voyages: key.voya
 writeFileSync(new URL('../public/data/laytime.json', import.meta.url), JSON.stringify(data, null, 2) + '\n');
 writeFileSync(new URL('../public/data/laytime.key.json', import.meta.url), JSON.stringify(key, null, 2) + '\n');
 const dem = Object.values(results).filter((x) => x.result === 'demurrage').length;
-console.log(`Wrote ${fixtures.length} fixtures, ${stoppages.length} stoppages, ${owner_statement.length} owner statement rows.`);
+console.log(`Wrote ${fixtures.length} fixtures, ${stoppages.length} stoppages, ${shex_periods.length} SHEX periods, ${owner_statement.length} owner statement rows.`);
 console.log(`${dem} on demurrage, ${fixtures.length - dem} on despatch. Owner errors on ${errors.map((e) => `${e.voyage_id} (${e.type})`).join(', ')}.`);

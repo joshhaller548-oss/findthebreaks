@@ -187,178 +187,334 @@
     "stoppages": [
       {
         "voyage_id": "VOY-2601",
-        "start": "2026-09-10 08:30",
-        "end": "2026-09-10 14:00",
+        "start_time": "2026-09-10 08:30",
+        "end_time": "2026-09-10 14:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2601",
-        "start": "2026-09-11 20:00",
-        "end": "2026-09-12 00:00",
+        "start_time": "2026-09-11 20:00",
+        "end_time": "2026-09-12 00:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2602",
-        "start": "2026-09-10 08:30",
-        "end": "2026-09-10 14:00",
+        "start_time": "2026-09-10 08:30",
+        "end_time": "2026-09-10 14:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2602",
-        "start": "2026-09-11 20:00",
-        "end": "2026-09-12 00:00",
+        "start_time": "2026-09-11 20:00",
+        "end_time": "2026-09-12 00:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2603",
-        "start": "2026-10-03 12:30",
-        "end": "2026-10-03 20:30",
+        "start_time": "2026-10-03 12:30",
+        "end_time": "2026-10-03 20:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2603",
-        "start": "2026-10-05 17:00",
-        "end": "2026-10-06 00:30",
+        "start_time": "2026-10-05 17:00",
+        "end_time": "2026-10-06 00:30",
         "reason": "swell",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2604",
-        "start": "2026-07-28 12:30",
-        "end": "2026-07-28 20:30",
+        "start_time": "2026-07-28 12:30",
+        "end_time": "2026-07-28 20:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2605",
-        "start": "2026-10-14 00:00",
-        "end": "2026-10-14 05:00",
+        "start_time": "2026-10-14 00:00",
+        "end_time": "2026-10-14 05:00",
         "reason": "berth congestion",
         "counts_against_laytime": true
       },
       {
         "voyage_id": "VOY-2605",
-        "start": "2026-10-15 03:30",
-        "end": "2026-10-15 12:30",
+        "start_time": "2026-10-15 03:30",
+        "end_time": "2026-10-15 12:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2605",
-        "start": "2026-10-16 11:30",
-        "end": "2026-10-16 14:00",
+        "start_time": "2026-10-16 11:30",
+        "end_time": "2026-10-16 14:00",
         "reason": "breakdown",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2606",
-        "start": "2026-07-28 12:30",
-        "end": "2026-07-28 20:30",
+        "start_time": "2026-07-28 12:30",
+        "end_time": "2026-07-28 20:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2607",
-        "start": "2026-06-19 02:00",
-        "end": "2026-06-19 04:30",
+        "start_time": "2026-06-19 02:00",
+        "end_time": "2026-06-19 04:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2608",
-        "start": "2026-07-28 12:30",
-        "end": "2026-07-28 20:30",
+        "start_time": "2026-07-28 12:30",
+        "end_time": "2026-07-28 20:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2609",
-        "start": "2026-07-20 15:30",
-        "end": "2026-07-20 19:00",
+        "start_time": "2026-07-20 15:30",
+        "end_time": "2026-07-20 19:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2609",
-        "start": "2026-07-21 03:00",
-        "end": "2026-07-21 06:30",
+        "start_time": "2026-07-21 03:00",
+        "end_time": "2026-07-21 06:30",
         "reason": "breakdown",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2610",
-        "start": "2026-07-16 05:00",
-        "end": "2026-07-16 09:30",
+        "start_time": "2026-07-16 05:00",
+        "end_time": "2026-07-16 09:30",
         "reason": "berth congestion",
         "counts_against_laytime": true
       },
       {
         "voyage_id": "VOY-2610",
-        "start": "2026-07-17 00:00",
-        "end": "2026-07-18 00:00",
+        "start_time": "2026-07-17 00:00",
+        "end_time": "2026-07-18 00:00",
         "reason": "public holiday",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2610",
-        "start": "2026-07-20 19:30",
-        "end": "2026-07-21 03:00",
+        "start_time": "2026-07-20 19:30",
+        "end_time": "2026-07-21 03:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2611",
-        "start": "2026-07-16 05:00",
-        "end": "2026-07-16 09:30",
+        "start_time": "2026-07-16 05:00",
+        "end_time": "2026-07-16 09:30",
         "reason": "berth congestion",
         "counts_against_laytime": true
       },
       {
         "voyage_id": "VOY-2611",
-        "start": "2026-07-17 00:00",
-        "end": "2026-07-18 00:00",
+        "start_time": "2026-07-17 00:00",
+        "end_time": "2026-07-18 00:00",
         "reason": "public holiday",
         "counts_against_laytime": true
       },
       {
         "voyage_id": "VOY-2611",
-        "start": "2026-07-20 19:30",
-        "end": "2026-07-21 03:00",
+        "start_time": "2026-07-20 19:30",
+        "end_time": "2026-07-21 03:00",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2612",
-        "start": "2026-08-10 16:00",
-        "end": "2026-08-10 19:30",
+        "start_time": "2026-08-10 16:00",
+        "end_time": "2026-08-10 19:30",
         "reason": "berth congestion",
         "counts_against_laytime": true
       },
       {
         "voyage_id": "VOY-2612",
-        "start": "2026-08-11 07:00",
-        "end": "2026-08-11 09:30",
+        "start_time": "2026-08-11 07:00",
+        "end_time": "2026-08-11 09:30",
         "reason": "shifting",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2612",
-        "start": "2026-08-12 09:30",
-        "end": "2026-08-12 17:30",
+        "start_time": "2026-08-12 09:30",
+        "end_time": "2026-08-12 17:30",
         "reason": "rain",
         "counts_against_laytime": false
       },
       {
         "voyage_id": "VOY-2612",
-        "start": "2026-08-13 09:00",
-        "end": "2026-08-13 16:00",
+        "start_time": "2026-08-13 09:00",
+        "end_time": "2026-08-13 16:00",
         "reason": "rain",
         "counts_against_laytime": false
+      }
+    ],
+    "shex_periods": [
+      {
+        "voyage_id": "VOY-2601",
+        "start_time": "2026-09-13 00:00",
+        "end_time": "2026-09-14 00:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2601",
+        "start_time": "2026-09-20 00:00",
+        "end_time": "2026-09-21 00:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "start_time": "2026-09-13 00:00",
+        "end_time": "2026-09-14 00:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "start_time": "2026-09-20 00:00",
+        "end_time": "2026-09-21 00:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "start_time": "2026-07-26 02:00",
+        "end_time": "2026-07-26 10:00",
+        "phase": "laytime",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "start_time": "2026-07-26 10:00",
+        "end_time": "2026-07-27 08:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "start_time": "2026-08-01 17:00",
+        "end_time": "2026-08-03 08:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "start_time": "2026-10-18 00:00",
+        "end_time": "2026-10-19 00:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "start_time": "2026-10-25 00:00",
+        "end_time": "2026-10-26 00:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "start_time": "2026-07-26 02:00",
+        "end_time": "2026-07-26 10:00",
+        "phase": "laytime",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "start_time": "2026-07-26 10:00",
+        "end_time": "2026-07-27 08:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "start_time": "2026-08-01 17:00",
+        "end_time": "2026-08-03 08:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "start_time": "2026-07-26 02:00",
+        "end_time": "2026-07-26 10:00",
+        "phase": "laytime",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "start_time": "2026-07-26 10:00",
+        "end_time": "2026-07-27 00:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "start_time": "2026-08-02 00:00",
+        "end_time": "2026-08-03 00:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "start_time": "2026-07-18 17:00",
+        "end_time": "2026-07-20 08:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "start_time": "2026-07-25 17:00",
+        "end_time": "2026-07-27 08:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "start_time": "2026-07-19 00:00",
+        "end_time": "2026-07-20 00:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "start_time": "2026-07-26 00:00",
+        "end_time": "2026-07-27 00:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start_time": "2026-08-15 17:00",
+        "end_time": "2026-08-16 07:00",
+        "phase": "laytime",
+        "loading_under_way": true
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start_time": "2026-08-16 07:00",
+        "end_time": "2026-08-17 08:00",
+        "phase": "after completion",
+        "loading_under_way": false
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start_time": "2026-08-22 17:00",
+        "end_time": "2026-08-23 07:00",
+        "phase": "after completion",
+        "loading_under_way": false
       }
     ],
     "owner_statement": [

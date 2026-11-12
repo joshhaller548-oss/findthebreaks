@@ -27,6 +27,16 @@ const excelModel = (id) => {
   return [...x.columns.map((c) => x.model[c.name] || ''), ...(x.total ? [x.model.total] : [])].map((f) => fill(f, counts));
 };
 
+const { drills: layDrills } = await import('../public/js/drills/laytime.mjs');
+const { countsFor: layCountsFor } = await import('../public/js/drills/laytime.mjs');
+const layData = JSON.parse(readFileSync(new URL('data/laytime.json', root), 'utf8'));
+const layCounts = layCountsFor(layData);
+const layExcel = (id) => {
+  const x = layDrills.find((d) => d.id === id).excel;
+  return x.columns.map((c) => fill(x.model[c.name] || '', layCounts));
+};
+const laySql = (id) => layDrills.find((d) => d.id === id).sql;
+
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
 const problems = [];
 const expectThat = (label, ok) => { if (!ok) problems.push(label); };
@@ -40,7 +50,7 @@ async function open({ width = 1360, height = 900, dark = false, mobile = false, 
   return page;
 }
 const ready = async (page) => {
-  await page.waitForFunction(() => document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled, { timeout: 20000 });
+  await page.waitForFunction(() => document.querySelector('.work .text-drill') || (document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled), { timeout: 20000 });
   await noStrayText(page);
 };
 // JS leaking into the page: null, undefined, [object Object], NaN. SQL NULL cells are upper case.
@@ -49,10 +59,11 @@ async function noStrayText(page) {
   const hit = /\b(null|undefined|NaN)\b|\[object Object\]/.exec(text);
   if (hit) problems.push(`stray "${hit[0]}" on the page near: ${text.slice(Math.max(0, hit.index - 60), hit.index + 20).replace(/\s+/g, ' ')}`);
 }
-async function go(page, drill, lang = 'excel') {
-  await page.goto(`${BASE}/reconciliation#drill-${drill}`, { waitUntil: 'networkidle0' });
+async function go(page, drill, lang = 'excel', task = 'reconciliation') {
+  await page.goto(`${BASE}/${task}#drill-${drill}`, { waitUntil: 'networkidle0' });
   await ready(page);
-  if (lang === 'sql') await tab(page, 'SQL');
+  // A hash change keeps the page and its current tab, so always choose one
+  if (await page.$('.work .tabs .tab')) await tab(page, lang === 'sql' ? 'SQL' : 'Excel');
 }
 async function tab(page, label) {
   const tabs = await page.$$('.work .tabs .tab');
@@ -248,11 +259,67 @@ for (const mode of ['reveal', 'slow']) {
   await ctx.close();
 }
 
+// ---------- laytime ----------
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await open({ context: ctx });
+  await go(page, 1, 'excel', 'laytime');
+  const worked = await page.$eval('.worked', (el) => el.innerText);
+  const contrast = await page.$eval('.contrast', (el) => el.innerText);
+  log('laytime worked example', worked.match(/USD [\d,.]+ payable to \w+/)?.[0]);
+  log('laytime contrast', contrast.match(/USD [\d,.]+ payable to \w+/)?.[0]);
+  expectThat('worked example shows despatch USD 1,041.67', worked.includes('USD 1,041.67 payable to charterer'));
+  expectThat('worked example states the terms above the calculation', /SHEX EIU: Sundays and holidays excepted, even if used/.test(worked) && worked.indexOf('SHEX BASIS') < worked.indexOf('Cargo') || worked.indexOf('SHEX basis') < worked.indexOf('Cargo'));
+  expectThat('contrast panel shows demurrage USD 12,500.00 under SHEX UU', contrast.includes('USD 12,500.00 payable to owner') && contrast.includes('SHEX UU'));
+  await page.screenshot({ path: `${OUT}/10-laytime-top.png` });
+
+  await go(page, 2, 'excel', 'laytime');
+  await excel(page, ['=K2']);
+  log('lay excel 2, NOR', await verdict(page));
+  await excel(page, ['=MIN(K2+J2, L2)']);
+  log('lay excel 2, turn as days', await verdict(page));
+  await excel(page, layExcel(2));
+  log('lay excel 2, model', await verdict(page));
+
+  await go(page, 5, 'sql', 'laytime');
+  await sql(page, laySql(5).replace('- COALESCE(st.mins, 0) - COALESCE(sx.mins, 0)', '- COALESCE(st.mins, 0)'));
+  log('lay sql 5, no SHEX', await verdict(page));
+  await sql(page, laySql(5));
+  log('lay sql 5, model', await verdict(page));
+
+  await go(page, 7, 'excel', 'laytime');
+  const noRound = layExcel(7);
+  noRound[5] = '=R2-Q2';
+  await excel(page, noRound);
+  log('lay excel 7, no ROUND', await verdict(page));
+  await excel(page, layExcel(7));
+  log('lay excel 7, model', await verdict(page));
+  await shot(page, '.layout', '11-laytime-excel-drill7');
+  const chip = await page.$$eval('.chip.found', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+  log('laytime chip', chip.join(' | '));
+  expectThat('drill 7 marks the owner errors chip found', chip.some((c) => c.includes("owner's statement")));
+
+  await go(page, 8, 'excel', 'laytime');
+  const show = await page.$('.text-drill .show-voyages');
+  log('drill 8 before drill 7', show ? 'asks to solve drill 7 first' : 'voyages shown, drill 7 is solved');
+  const areas = await page.$$('.text-drill textarea');
+  for (const a of areas) await a.type('The owner counted time that should not count.', { delay: 0 });
+  await page.click('.text-drill .compare');
+  const models = await page.$$eval('.model-note', (els) => els.map((e) => e.innerText));
+  log('drill 8 model answers', models.length + ': ' + models[0]);
+  await page.click('.text-drill .mark-done');
+  log('drill 8 status', await statusOf(page, 8));
+  expectThat('drill 8 self-marked gives a tick', (await statusOf(page, 8)).includes('done'));
+  await shot(page, '.layout', '12-laytime-drill8');
+  await ctx.close();
+}
+
 // ---------- phone width, dark ----------
-for (const [drill, name] of [[7, '08-phone-dark-excel-drill7'], [4, '09-phone-dark-sql-drill4']]) {
+for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconciliation'], [4, '09-phone-dark-sql-drill4', 'reconciliation'], [5, '13-phone-dark-laytime-excel-drill5', 'laytime']]) {
   const page = await open({ width: 400, height: 860, dark: true, mobile: true });
-  await go(page, drill, drill === 4 ? 'sql' : 'excel');
-  if (drill === 7) await excel(page, ['=VLOOKUP(B2, cargoes!$A:$F, 6, FALSE)', '=G2-D2', '=H2<>0']);
+  await go(page, drill, drill === 4 ? 'sql' : 'excel', task);
+  if (task === 'laytime') await excel(page, layExcel(5));
+  else if (drill === 7) await excel(page, ['=VLOOKUP(B2, cargoes!$A:$F, 6, FALSE)', '=G2-D2', '=H2<>0']);
   else await sql(page, sqlModel(4));
   log(`phone, drill ${drill}`, await verdict(page));
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });

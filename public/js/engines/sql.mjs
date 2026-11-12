@@ -18,11 +18,26 @@ export function createSqlEngine(alasql, tables) {
 
   const tableNames = Object.keys(tables);
   const knownColumns = new Set(tableNames.flatMap((t) => Object.keys(tables[t][0] || {})));
+
+  // Timestamps load as Date objects in UTC. Left as text, AlaSQL would read
+  // them in the browser's time zone, and a clock change inside a voyage
+  // would move every answer by an hour.
+  const STAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+  const stampCols = Object.fromEntries(tableNames.map((t) => {
+    const rows = tables[t];
+    const cols = Object.keys(rows[0] || {}).filter((c) => rows.every((r) => r[c] === null || (typeof r[c] === 'string' && STAMP.test(r[c]))) && rows.some((r) => r[c] !== null));
+    return [t, cols];
+  }));
+  const loaded = Object.fromEntries(tableNames.map((t) => [t, tables[t].map((r) => {
+    const out = { ...r };
+    for (const c of stampCols[t]) if (out[c] !== null) out[c] = new Date(`${out[c].replace(' ', 'T')}:00Z`);
+    return out;
+  })]));
   const listTables = joinWords(tableNames);
 
   function fresh() {
     const db = new alasql.Database();
-    for (const name of tableNames) db.tables[name] = { data: structuredClone(tables[name]) };
+    for (const name of tableNames) db.tables[name] = { data: structuredClone(loaded[name]) };
     return db;
   }
 

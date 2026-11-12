@@ -5,15 +5,24 @@
 // column names are ignored, columns are matched by their contents, strings
 // are trimmed, and numbers within a cent of each other are equal.
 
-const TOLERANCE = 0.01 - 1e-9;
+// Within a cent counts as equal, a cent included: an honest ROUND in a
+// spreadsheet can land a cent away from the exact half-up figure.
+const TOLERANCE = 0.01 + 1e-9;
+
+// Timestamps compare to the minute, in UTC, whether they arrive as a Date,
+// an ISO string or 'YYYY-MM-DD HH:MM'.
+const STAMP = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(\.\d+)?)?Z?$/;
+export const stampOf = (d) => d.toISOString().slice(0, 16).replace('T', ' ');
 
 export function normValue(v) {
   if (v === undefined || v === null) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : String(v);
   if (typeof v === 'boolean') return v;
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? String(v) : stampOf(v);
   const s = String(v).trim();
   if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  const m = STAMP.exec(s);
+  if (m) return `${m[1]} ${m[2]}`;
   return s;
 }
 
@@ -31,7 +40,7 @@ function cmp(a, b) {
 }
 
 export function valEq(a, b) {
-  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < TOLERANCE;
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) <= TOLERANCE;
   return a === b;
 }
 
@@ -69,8 +78,10 @@ function mapColumns(U, ucols, E, ecols, transform = (x) => x) {
 
 // Returns { verdict: 'correct' | 'wrong', shapeOk, code, ...detail }
 export function compare(user, expected) {
-  const U = user.rows.map((r) => r.map(normValue));
-  const E = expected.rows.map((r) => r.map(normValue));
+  // Labels such as demurrage and despatch are checked without regard to capitals
+  const fold = (v) => (expected.caseInsensitive && typeof v === 'string' ? v.toLowerCase() : v);
+  const U = user.rows.map((r) => r.map((v) => fold(normValue(v))));
+  const E = expected.rows.map((r) => r.map((v) => fold(normValue(v))));
   const ucols = user.columns;
   const ecols = expected.columns;
   const shapeOk = ucols.length === ecols.length;
