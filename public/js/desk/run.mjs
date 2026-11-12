@@ -155,7 +155,7 @@ export function ownerTicket(item) {
 
 // ---------- the run ----------
 
-export function createRun(item) {
+export function createRun(item, { strikes } = {}) {
   const { fixture: f, result } = item;
   const steps = [startTicket(item), ...buildTickets(item), settleTicket(item), ...(item.owner ? [ownerTicket(item)] : [])]
     .map((t, i) => ({ ...t, id: i + 1 }));
@@ -163,7 +163,7 @@ export function createRun(item) {
   const commenced = toMin(result.laytime_commenced);
   const loadStart = toMin(f.loading_commenced);
   const done = toMin(f.loading_completed);
-  const strikesAllowed = item.training ? Infinity : STRIKES;
+  const strikesAllowed = strikes ?? (item.training ? Infinity : STRIKES);
   const s = {
     t: nor, used: 0, next: 0, open: null, first: {}, tries: {}, lines: [],
     score: 0, streak: 0, strikes: 0, takenOver: false, explaining: null, explained: null, finished: false,
@@ -255,7 +255,7 @@ export function createRun(item) {
         if (tk.options) message = tk.options.find((o) => o.id === answer)?.message ?? message;
         if (firstTry) s.strikes += 1;
         if (s.strikes >= strikesAllowed) s.takenOver = true;
-        return { right: false, message, takenOver: s.takenOver };
+        return { right: false, message, takenOver: s.takenOver, struck: firstTry };
       }
       let gained = 0;
       if (firstTry && !s.takenOver) {
@@ -283,6 +283,15 @@ export function createRun(item) {
       s.finished = true;
     },
     firstCall: (id) => s.first[id],
+    // When the next step falls due on this vessel's own clock
+    nextDue() {
+      if (s.finished) return Infinity;
+      const tk = steps[s.next];
+      return tk ? dueAt(tk) : done;
+    },
+    // A day on the desk shares its strikes: when they run out, every
+    // vessel is handed to the head of operations
+    takeOver() { s.takenOver = true; },
     summary() {
       const firstOf = (tk) => (s.first[tk.id] && s.first[tk.id] !== '__head' ? s.first[tk.id] : tk.answer);
       const callsOff = timeTickets.filter((tk) => firstOf(tk) === 'off').map((tk) => [tk.start, tk.end]);
@@ -312,4 +321,95 @@ export function createRun(item) {
   };
   openNext();
   return api;
+}
+
+// ---------- a day on the desk ----------
+
+// The twelve fixtures as four days of three vessels. Each vessel keeps its
+// own statement of facts; the desk clock runs them together, the next one
+// arriving ARRIVAL_GAP desk minutes after the last.
+export const DAYS = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]];
+export const ARRIVAL_GAP = 20 * 60;
+
+export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
+  const training = items.length === 1 && items[0].training;
+  const limit = strikes ?? (training ? Infinity : STRIKES);
+  const lanes = items.map((item, i) => {
+    const run = createRun(item, { strikes: Infinity });
+    return { i, item, run, offset: i * gap, nor: run.nor };
+  });
+  let T = 0;
+  let strikesUsed = 0;
+  let takenOver = false;
+  const deskOf = (l) => l.run.t - l.nor + l.offset;
+  // Only a vessel that has arrived can have a ticket in front of you
+  const here = () => lanes.filter((l) => T >= l.offset);
+  const active = () => here().find((l) => l.run.explaining) ?? here().find((l) => l.run.open) ?? null;
+
+  const day = {
+    lanes,
+    training,
+    strikesAllowed: limit,
+    get T() { return T; },
+    get strikes() { return strikesUsed; },
+    get takenOver() { return takenOver; },
+    get finished() { return lanes.every((l) => l.run.finished); },
+    get score() { return lanes.reduce((n, l) => n + l.run.score, 0); },
+    get active() { return active(); },
+    arrived: (l) => T >= l.offset,
+    // Advance the desk clock by up to dt minutes, stopping when any vessel
+    // has a ticket due
+    advance(dt) {
+      if (active()) return 'ticket';
+      if (day.finished) return 'complete';
+      const live = lanes.filter((l) => !l.run.finished);
+      const next = Math.min(...live.map((l) => l.offset + l.run.nextDue() - l.nor));
+      const target = Math.min(T + dt, next);
+      // A vessel can be ahead of the desk clock after a ticket jumps it to
+      // the end of a period; it waits for the desk to catch up
+      for (const l of live) if (l.offset <= target) l.run.advance(Math.max(0, target - Math.max(deskOf(l), l.offset)));
+      T = target;
+      return active() ? 'ticket' : day.finished ? 'complete' : 'running';
+    },
+    call(answer) {
+      const l = active();
+      if (!l || takenOver) return null;
+      const r = l.run.call(answer);
+      if (r && !r.right && r.struck) {
+        strikesUsed += 1;
+        if (strikesUsed >= limit) {
+          takenOver = true;
+          for (const x of lanes) x.run.takeOver();
+        }
+      }
+      return r && { ...r, lane: l, takenOver };
+    },
+    headCall() {
+      const l = active();
+      if (!l) return null;
+      if (l.run.explaining) l.run.explain(null, false);
+      else l.run.headCall();
+      return l;
+    },
+    explain(text, gotIt) {
+      const l = active();
+      if (l?.run.explaining) l.run.explain(text, gotIt);
+    },
+    summary() {
+      const per = lanes.map((l) => ({ lane: l, ...l.run.summary() }));
+      const wrong = per.reduce((n, p) => n + p.wrong.length, 0);
+      return {
+        per,
+        score: day.score,
+        decisions: per.reduce((n, p) => n + p.decisions, 0),
+        rightFirstTime: per.reduce((n, p) => n + p.rightFirstTime, 0),
+        wrong,
+        difference_usd: Math.round(per.reduce((n, p) => n + p.difference_usd, 0) * 100) / 100,
+        stars: takenOver ? 0 : wrong === 0 ? 3 : wrong <= 2 ? 2 : 1,
+        takenOver,
+        strikes: strikesUsed,
+      };
+    },
+  };
+  return day;
 }

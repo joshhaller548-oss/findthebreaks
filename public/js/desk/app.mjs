@@ -1,5 +1,6 @@
 // /laytime: the desk game. Screens are routed on the hash so the back
-// button works: #/ title, #/glossary, #/ledger, #/briefing/<n>, #/desk/<n>.
+// button works: #/ title, #/glossary, #/ledger, #/briefing/<n> and #/desk/<n>
+// for one cargo, #/day/<k> and #/daydesk/<k> for a day of three vessels.
 // The Excel and SQL drills live at /laytime/tools.
 
 import { h } from '../dom.mjs';
@@ -9,6 +10,7 @@ import { loadFixtures } from './fixtures.mjs';
 import { briefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
 import { deskScreen } from './desk-screen.mjs';
+import { DAYS, ARRIVAL_GAP } from './run.mjs';
 
 // Every cargo is playable: the training cargo and the twelve fixtures
 const playable = (n) => items.some((it) => it.n === n);
@@ -25,6 +27,15 @@ const backBar = (label) => h('header', { class: 'screen-bar' },
 
 const settled = () => new Set(profile.ledger().map((e) => e.n));
 const nextItem = () => items.find((it) => !settled().has(it.n)) ?? items[0];
+const dayKey = (k) => `day-${k}`;
+const dayItems = (k) => DAYS[k - 1].map((n) => items.find((it) => it.n === n));
+// After the training cargo, the desk runs in days of three vessels
+function nextStep() {
+  const done = settled();
+  if (!done.has(0)) return { href: '#/briefing/0', tag: 'Training cargo', sub: 'Learn the clock on one cargo first', vessel: 'Training' };
+  const k = DAYS.findIndex((_, i) => !done.has(dayKey(i + 1))) + 1 || 1;
+  return { href: `#/day/${k}`, tag: `Day ${k} \u00B7 three vessels`, sub: dayItems(k).map((it) => it.fixture.vessel).join(', '), vessel: dayItems(k)[0].fixture.vessel };
+}
 
 function wordmark() {
   return h('h1', { class: 'wordmark', 'aria-label': 'Find the Breaks' },
@@ -35,10 +46,10 @@ function wordmark() {
 // ---------- screens ----------
 
 function titleScreen() {
-  const next = nextItem();
+  const next = nextStep();
   const name = profile.name();
   return h('section', { class: 'screen title-screen', 'aria-label': 'Title' },
-    harbour({ vessel: next.training ? 'Training' : next.fixture.vessel }),
+    harbour({ vessel: next.vessel }),
     h('div', { class: 'title-body' },
       h('div', { class: 'title-left' },
         wordmark(),
@@ -47,10 +58,10 @@ function titleScreen() {
         settledLine(),
       ),
       h('nav', { class: 'title-actions', 'aria-label': 'Desk' },
-        btn('big ink', { href: `#/briefing/${next.n}` },
-          next.training ? h('span', { class: 'tag-chip' }, 'Training cargo') : null,
-          'Start the next fixture',
-          h('span', { class: 'sub' }, next.training ? 'Learn the clock on one cargo first' : next.label)),
+        btn('big ink', { href: next.href },
+          h('span', { class: 'tag-chip' }, next.tag),
+          next.href.startsWith('#/day') ? 'Start the next day' : 'Start the next fixture',
+          h('span', { class: 'sub' }, next.sub)),
         h('div', { class: 'row' },
           btn('accent', { href: '#/ledger' }, 'Ledger'),
           btn('sea', { href: '#/glossary' }, 'Glossary')),
@@ -79,7 +90,8 @@ function settledLine() {
   const b = bests();
   if (!b.size) return null;
   const total = [...b.values()].reduce((n, e) => n + e.score, 0);
-  return h('p', { class: 'greet' }, `Settled ${b.size} of ${items.length} \u00B7 best total ${total.toLocaleString('en-GB')}`);
+  const days = DAYS.filter((_, i) => b.has(dayKey(i + 1))).length;
+  return h('p', { class: 'greet' }, `Days settled ${days} of ${DAYS.length} \u00B7 best total ${total.toLocaleString('en-GB')}`);
 }
 
 function glossaryScreen() {
@@ -103,7 +115,18 @@ function ledgerScreen() {
     h('h2', { id: 'l-title' }, 'Your ledger'),
     b.size
       ? h('div', { class: 'ledger' },
-        h('p', { class: 'screen-lede' }, `Best run on each cargo. Settled ${b.size} of ${items.length}, best total ${total.toLocaleString('en-GB')}. Kept in this browser only.`),
+        h('p', { class: 'screen-lede' }, `Best run on each day and each cargo, best total ${total.toLocaleString('en-GB')}. Kept in this browser only.`),
+        h('h3', { class: 'ledger-h' }, 'Days on the desk'),
+        h('ol', { class: 'ledger-list' }, DAYS.map((ns, i) => {
+          const e = b.get(dayKey(i + 1));
+          return h('li', { class: e ? 'played' : 'open' },
+            h('a', { href: `#/day/${i + 1}` },
+              h('span', { class: 'lg-name' }, `Day ${i + 1} \u00B7 ${dayItems(i + 1).map((it) => it.fixture.vessel).join(', ')}`),
+              e ? star(e.stars) : h('span', { class: 'muted small' }, 'not played'),
+              h('span', { class: 'lg-score mono' }, e ? e.score.toLocaleString('en-GB') : ''),
+              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${e.difference_usd === 0 ? 'priced exactly' : `off by USD ${USD.format(Math.abs(e.difference_usd))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
+        })),
+        h('h3', { class: 'ledger-h' }, 'Single cargoes'),
         h('ol', { class: 'ledger-list' }, items.map((it) => {
           const e = b.get(it.n);
           return h('li', { class: e ? 'played' : 'open' },
@@ -185,11 +208,46 @@ dialog.querySelector('form').addEventListener('submit', (e) => {
 
 // ---------- routing ----------
 
+const again = { onLeave: (why) => (why === 'again' ? render() : null) };
+
 function deskView(n) {
   const item = items.find((it) => it.n === n);
   if (!item) return notFound();
-  current = deskScreen(item, { onLeave: (why) => (why === 'again' ? render() : null) });
+  const next = item.training ? { href: '#/day/1', label: 'Start day 1' } : n < 12 ? { href: `#/briefing/${n + 1}`, label: 'Next fixture' } : null;
+  current = deskScreen({ key: n, label: item.label, title: item.training ? 'Training cargo' : item.fixture.vessel, items: [item], next }, again);
   return current.el;
+}
+
+function dayDeskView(k) {
+  if (!DAYS[k - 1]) return notFound();
+  const next = k < DAYS.length ? { href: `#/day/${k + 1}`, label: `Start day ${k + 1}` } : null;
+  current = deskScreen({ key: dayKey(k), label: 'Desk day', title: `Day ${k}`, items: dayItems(k), next }, again);
+  return current.el;
+}
+
+function dayBriefing(k) {
+  if (!DAYS[k - 1]) return notFound();
+  const ships = dayItems(k);
+  const gap = ARRIVAL_GAP / 60;
+  return h('section', { class: 'screen briefing-screen', 'aria-labelledby': 'd-title' },
+    backBar(`Morning briefing \u00B7 Day ${k}`),
+    h('h2', { id: 'd-title' }, `Day ${k}: three vessels`),
+    h('p', { class: 'screen-lede' }, `Three ships on one desk, each on its own charter party and statement of facts. The desk clock runs them together, the next arriving ${gap} hours after the last. Tickets come from all three, so check whose terms you are reading. Three wrong calls across the day and ${HEAD.name} takes the desk.`),
+    h('div', { class: 'day-ships' }, ships.map((it, i) => {
+      const b = briefing(it);
+      return h('article', { class: 'day-ship' },
+        h('p', { class: 'clause-tag' }, `Vessel ${i + 1} \u00B7 arrives +${i * gap} hrs`),
+        h('h3', {}, it.fixture.vessel),
+        h('dl', { class: 'fx-terms' }, b.terms.filter(([key]) => ['Laytime allowed', 'Exceptions', 'Waiting for berth', 'Despatch'].includes(key)).map(([key, v]) => h('div', {}, h('dt', {}, key), h('dd', {}, v)))),
+        h('div', { class: 'clause' }, h('p', { class: 'clause-tag' }, 'The clause that matters'), h('h4', {}, b.clause.title), h('p', {}, b.clause.text)));
+    })),
+    h('figure', { class: 'quote' },
+      h('span', { class: 'avatar', 'aria-hidden': 'true' }, HEAD.name.split(' ').map((w) => w[0]).join('')),
+      h('blockquote', {}, h('p', {}, 'Three ships, three charter parties. Before you call a ticket, read whose it is. Same rain, different clause, different answer.')),
+      h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
+    h('div', { class: 'brief-actions' },
+      btn('big ink', { href: `#/daydesk/${k}` }, 'Open the desk'),
+      h('p', { class: 'dnote' }, 'Each vessel opens with when its laytime starts, and closes with settlement and the owner\u2019s statement.')));
 }
 
 function render() {
@@ -202,6 +260,8 @@ function render() {
       : screen === 'ledger' ? ledgerScreen()
         : screen === 'briefing' ? briefingScreen(Number(arg))
           : screen === 'desk' ? deskView(Number(arg))
+            : screen === 'day' ? dayBriefing(Number(arg))
+              : screen === 'daydesk' ? dayDeskView(Number(arg))
             : notFound();
   stage.replaceChildren(view);
   stage.dataset.screen = screen || 'title';

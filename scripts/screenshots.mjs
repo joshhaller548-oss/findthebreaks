@@ -472,11 +472,57 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     expectThat(`desk ${tag}: a clean fixture run gets three stars and a zero difference`, fsum.includes('3 of 3 stars') || (await page.$eval('.summary .stars', (e) => e.getAttribute('aria-label'))) === '3 of 3 stars');
     expectThat(`desk ${tag}: the recap counts every decision right (${createRun(fx).steps.length})`, fsum.includes(`Right first time: ${createRun(fx).steps.length} of ${createRun(fx).steps.length}`) && fsum.includes('Your calls match the true statement'));
     await page.screenshot({ path: `${OUT}/18-desk-recap-${tag}.png`, fullPage: true });
+    // Day 1: three vessels on one desk clock, answers looked up per vessel
+    const { DAYS } = await import('../public/js/desk/run.mjs');
+    const dayShips = DAYS[0].map((k) => deskItems[k - 1]);
+    const stepsOf = Object.fromEntries(dayShips.map((it) => [it.fixture.vessel, createRun(it).steps]));
+    await page.evaluate(() => { location.hash = '#/day/1'; });
+    await page.waitForSelector('.day-ship');
+    expectThat(`desk ${tag}: the day briefing lists three vessels`, (await page.$$('.day-ship')).length === 3);
+    await page.screenshot({ path: `${OUT}/19-day-briefing-${tag}.png`, fullPage: true });
+    await page.click('.brief-actions a.gbtn');
+    await page.waitForSelector('.desk-screen .fleet .vcard');
+    expectThat(`desk ${tag}: the day desk shows a card per vessel`, (await page.$$('.fleet .vcard')).length === 3);
+    await page.click('.sb.controls .gbtn:nth-child(2)');
+    const seen = [];
+    let shotMid = false;
+    for (let i = 0; i < 1200 && !(await page.$('.summary')); i++) {
+      if (await page.$('.t-explain .explain-input')) {
+        await page.type('.explain-input', 'Their figure is wrong.');
+        await page.click('.t-explain .gbtn.ink');
+        await page.waitForSelector('.model-note');
+        await page.click('.t-explain .gbtn.ok');
+        continue;
+      }
+      const tkEl = await page.$('.ticket:not(.t-explain)');
+      if (!tkEl) { await new Promise((r) => setTimeout(r, 100)); continue; }
+      const vessel = await page.$eval('.ticket .tk-vessel', (e) => e.textContent);
+      const id = Number((await page.$eval('.ticket .ticket-no', (e) => e.textContent)).match(/Ticket (\d+)/)[1]);
+      const tk = stepsOf[vessel][id - 1];
+      const key = `${vessel}:${id}`;
+      if (seen.at(-1) === key) { await new Promise((r) => setTimeout(r, 100)); continue; }
+      seen.push(key);
+      if (!shotMid && seen.length === 6) { shotMid = true; await page.screenshot({ path: `${OUT}/19-day-desk-${tag}.png`, fullPage: true }); }
+      if (tk.type === 'time') await page.keyboard.press(tk.answer === 'off' ? 'e' : 'c');
+      else if (tk.type === 'owner') await page.keyboard.press(tk.answer === 'dispute' ? 'd' : 'a');
+      else await page.keyboard.press(String(tk.options.findIndex((o) => o.id === tk.answer) + 1));
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const vesselsSeen = seen.map((k) => k.split(':')[0]);
+    expectThat(`desk ${tag}: day 1 tickets interleave across vessels (${seen.length} tickets)`, vesselsSeen.some((v, i) => i > 1 && v !== vesselsSeen[i - 1] && vesselsSeen.slice(0, i).includes(v)));
+    expectThat(`desk ${tag}: every ticket of the day arrived (${seen.length} of ${Object.values(stepsOf).flat().length})`, seen.length === Object.values(stepsOf).flat().length);
+    const dsum = await page.$eval('.summary', (e) => e.innerText.replace(/\s+/g, ' '));
+    log(`desk day 1 ${tag}`, dsum.slice(0, 220));
+    expectThat(`desk ${tag}: the day recap settles all three at a zero difference`, dsum.includes('Day 1 settled') && dsum.includes('Across the day: USD 0.00') && (await page.$$('.recap-table tbody tr')).length === 3);
+    await page.screenshot({ path: `${OUT}/19-day-recap-${tag}.png`, fullPage: true });
+    const dayOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expectThat(`desk ${tag}: no horizontal scroll on the day desk`, dayOverflow <= 0);
+
     await page.evaluate(() => { location.hash = '#/ledger'; });
     await page.waitForSelector('.ledger-list');
     const ledger = await page.$$eval('.ledger-list li.played', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
     log(`desk ledger ${tag}`, ledger.join(' | '));
-    expectThat(`desk ${tag}: the ledger lists the training cargo and the fixture`, ledger.length === 2);
+    expectThat(`desk ${tag}: the ledger lists day 1, the training cargo and the fixture`, ledger.length === 3 && ledger[0].startsWith('Day 1'));
     await page.screenshot({ path: `${OUT}/18-desk-ledger-${tag}.png`, fullPage: true });
   }
   if (width === 1360 && !dark) {

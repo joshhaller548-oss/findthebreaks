@@ -7,7 +7,7 @@ import { createProfile, cleanName } from '../public/js/desk/profile.mjs';
 import { glossary } from '../public/js/desk/glossary.mjs';
 import { briefing, clauseFor, when } from '../public/js/desk/briefing.mjs';
 import { calculate, workedExample, deductions, toMin } from '../public/js/laytime/calc.mjs';
-import { createRun, buildTickets, startTicket, settleTicket, ownerTicket, POINTS, STRIKES } from '../public/js/desk/run.mjs';
+import { createRun, createDay, DAYS, buildTickets, startTicket, settleTicket, ownerTicket, POINTS, STRIKES } from '../public/js/desk/run.mjs';
 
 const root = new URL('../public/', import.meta.url);
 const read = (p) => JSON.parse(readFileSync(new URL(p, root), 'utf8'));
@@ -143,6 +143,48 @@ const disputedRun = playThrough(v5);
 check('disputing the owner asks for a sentence, then self-marking adds points', disputedRun.summary().explained?.gotIt === true && disputedRun.summary().score > right.find((r) => r.item === v5).summary().score - 1);
 const honest = playThrough(v5, (tk) => tk.answer, false);
 check('marking your own sentence as not quite adds nothing', honest.summary().score === disputedRun.summary().score - POINTS.explained);
+
+// ---------- days on the desk (slice 4) ----------
+const playDay = (items, pick = (tk) => tk.answer) => {
+  const day = createDay(items);
+  const order = [];
+  let guard = 0;
+  while (!day.finished && guard++ < 20000) {
+    const l = day.active;
+    if (l) {
+      if (l.run.explaining) { day.explain('They got the time wrong.', true); continue; }
+      if (day.takenOver) { day.headCall(); continue; }
+      order.push(l.i);
+      const tk = l.run.open;
+      const r = day.call(pick(tk, l));
+      if (!r.right) { if (day.takenOver) day.headCall(); else day.call(tk.answer); }
+      continue;
+    }
+    day.advance(60);
+  }
+  return { day, order };
+};
+const dayItems = DAYS.map((ns) => ns.map((k) => all[k - 1]));
+check(`the twelve fixtures make ${DAYS.length} days of three, each fixture once`, DAYS.flat().sort((a, b) => a - b).join() === '1,2,3,4,5,6,7,8,9,10,11,12' && DAYS.every((d) => d.length === 3));
+const played = dayItems.map((items) => playDay(items));
+check('every day plays to the end with every vessel settled', played.every(({ day }) => day.finished && day.lanes.every((l) => l.run.finished)));
+check('right calls reproduce calc.mjs on every vessel of every day', played.every(({ day }) => day.lanes.every((l) => l.run.used === l.item.result.used_min && l.run.summary().difference_usd === 0)));
+const interleaved = played.map(({ order }) => order.some((x, i) => i > 0 && x < order[i - 1]));
+check(`tickets from different vessels interleave on every day (${played.map(({ order }) => order.join('')).join(' | ')})`, interleaved.every(Boolean));
+check(`a day brings 13 or more decisions (${played.map(({ day }) => day.summary().decisions).join(', ')})`, played.every(({ day }) => day.summary().decisions >= 13));
+check('no vessel brings a ticket before it arrives', played.every(({ order }, d) => order.indexOf(1) > 0 && order.indexOf(2) > order.indexOf(1)));
+check('a clean day scores the sum of its vessels and three stars', played.every(({ day }) => day.summary().stars === 3 && day.summary().score === day.lanes.reduce((n, l) => n + l.run.score, 0)));
+// Strikes are shared across the day
+let wrongs = 0;
+const struck = playDay(dayItems[1], (tk) => {
+  if (wrongs >= 3 || !tk.options) return tk.answer;
+  wrongs += 1;
+  return tk.options.find((o) => o.id !== tk.answer).id;
+});
+const sd = struck.day.summary();
+check(`three wrong calls across the day hand every vessel to the head (${sd.strikes} strikes on ${new Set(struck.day.lanes.filter((l) => l.run.summary().wrong.length).map((l) => l.i)).size} vessels)`, sd.takenOver && sd.strikes === 3 && sd.stars === 0 && struck.day.lanes.every((l) => l.run.takenOver && l.run.used === l.item.result.used_min));
+const solo = playDay([training]);
+check('the training cargo plays as a one-vessel day with no strike limit', solo.day.finished && solo.day.strikesAllowed === Infinity && solo.day.summary().difference_usd === 0);
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

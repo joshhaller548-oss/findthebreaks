@@ -184,7 +184,7 @@
 .tag-chip { align-self: flex-start; font: 600 0.68rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); padding: 0.15rem 0.45rem; margin-bottom: 0.35rem; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-.desk-bar { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)) auto; border-bottom: 1px solid var(--rule-strong); background: var(--bar-bg); color: var(--bar-ink); }
+.desk-bar { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; border-bottom: 1px solid var(--rule-strong); background: var(--bar-bg); color: var(--bar-ink); }
 .sb { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.9rem; border-right: 1px solid var(--bar-rule); min-width: 0; }
 .sb:last-child { border-right: 0; }
 .sb-label { font: 500 0.66rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
@@ -288,6 +288,38 @@
 .lg-detail { grid-area: detail; font-size: 0.78rem; color: var(--muted); }
 .ledger-list li.open .lg-name { font-weight: 500; color: var(--ink-2); }
 
+/* ---------- slice 4: vessels on one desk ---------- */
+
+.fleet { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--bar-bg); color: var(--bar-ink); border-bottom: 1px solid var(--rule-strong); }
+.fleet.n1 { grid-template-columns: minmax(0, 1fr); }
+.fleet.n1 .vcard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+.fleet.n1 .vc-name { display: none; }
+.vcard { padding: 0.55rem 0.9rem 0.65rem; border-right: 1px solid var(--bar-rule); border-top: 3px solid transparent; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.vcard:last-child { border-right: 0; }
+.vcard.active { border-top-color: #e0a64a; background: color-mix(in srgb, var(--bar-ink) 8%, var(--bar-bg)); }
+.vcard.waiting { opacity: 0.55; }
+.vcard.done .phase { color: #8fdc9d; }
+.vc-name { margin: 0; font: 700 0.95rem var(--sans); }
+.vc-clock { font-size: 0.85rem; }
+.vc-row { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; font-size: 0.85rem; }
+.vc-row .neg { color: #ff8f83; }
+.ts-vessel { font-weight: 700; color: var(--ink); }
+.ts-vessel::before { display: none; }
+.terms-strip li.ts-vessel::before { content: none; }
+.tk-vessel { display: inline-block; margin: 0 0 0.45rem; font: 700 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; background: var(--ink); color: var(--bg); padding: 0.15rem 0.5rem; }
+.st-vessel { font-weight: 600; color: var(--ink); }
+.recap-table { margin-top: 0.6rem; }
+.recap-table td.ok { color: var(--ok); font-weight: 600; }
+.recap-table td.bad { color: var(--bad); font-weight: 600; }
+.day-diff { padding: 0.5rem 0.7rem; }
+.day-diff.zero { background: var(--ok-soft); }
+.day-diff.off { background: var(--bad-soft); }
+.ledger-h { margin: 0.4rem 32px 0.5rem; font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.day-ships { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding: 8px 32px 0; }
+.day-ship h3 { margin: 0.1rem 0 0.5rem; font: 700 1.2rem var(--sans); }
+.day-ship .fx-terms > div { grid-template-columns: 7.5rem minmax(0, 1fr); }
+.day-ship .clause { margin-top: 0.7rem; }
+
 /* ---------- name dialog ---------- */
 
 .name-dialog { border: 2px solid var(--ink); padding: 0; background: var(--surface); color: var(--ink); width: min(560px, calc(100vw - 32px)); box-sizing: border-box; }
@@ -332,6 +364,15 @@
   .sum-grid > div { border-right: 0; border-bottom: 1px solid var(--rule); }
   .sum-grid > div:last-child { border-bottom: 0; }
   .statement { max-height: none; }
+  .fleet { grid-template-columns: minmax(0, 1fr); }
+  .fleet.n1 .vcard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.3rem 0.8rem; }
+  .vcard { border-right: 0; border-bottom: 1px solid var(--bar-rule); }
+  .day-ships { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 0; }
+  .ledger-h { margin-left: 16px; margin-right: 16px; }
+  .recap-table thead { display: none; }
+  .recap-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--rule-strong); padding: 0.3rem 0; }
+  .recap-table tbody th { grid-column: 1 / -1; color: var(--ink); font-weight: 700; }
+  .recap-table th, .recap-table td { border-bottom: 0; padding: 0.2rem 0.4rem; }
   .sof > div { grid-template-columns: 8.5rem minmax(0, 1fr); }
   .gbtn.option { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .gbtn.option .sub { text-align: left; }
