@@ -282,9 +282,12 @@ for f in fixtures:
     commenced = min(at(f["nor_tendered"]) + timedelta(hours=f["turn_time_hrs"]), load_start)
     stops = [(at(s["start_time"]), at(s["end_time"])) for s in stoppages if s["voyage_id"] == f["voyage_id"]]
     rows = [p for p in periods if p["voyage_id"] == f["voyage_id"]]
-    # What each minute should be, worked out from the window text alone
+    # What each minute should be, worked out from the window text alone. A
+    # window in progress when laytime commenced is listed from its boundary.
     want = {}
     dt = commenced
+    while inside(dt - MINUTE):
+        dt -= MINUTE
     while dt < done + timedelta(days=7):
         if inside(dt):
             if dt < done:
@@ -303,6 +306,16 @@ for f in fixtures:
     if got != want:
         table_ok = False
 check("every SHEX minute inside laytime and in the week after completion is listed once, with the right phase and loading flag", table_ok)
+# A period that started at commencement only because the table was clipped
+# there would give away drill 2's answer
+leak = []
+for f in fixtures:
+    if f["shex_basis"] == "SHINC":
+        continue
+    inside = window_test(f["shex_window"])
+    commenced = min(at(f["nor_tendered"]) + timedelta(hours=f["turn_time_hrs"]), at(f["loading_commenced"]))
+    leak += [f["voyage_id"] for p in periods if p["voyage_id"] == f["voyage_id"] and at(p["start_time"]) == commenced and inside(commenced - MINUTE)]
+check("no SHEX period is cut at laytime commencement; one in progress starts at its window boundary", not leak, ", ".join(leak))
 
 ats_ok = True
 for f in fixtures:

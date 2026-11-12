@@ -187,9 +187,11 @@ export function workedExample(example, defaults, overrides = {}) {
   return { fixture, result: calculate(fixture, example.stoppages) };
 }
 
-// SHEX periods as a statement of facts lists them: each window inside
-// laytime, split where loading was or was not under way, then each window
-// in the week after completion, which only all time saved needs.
+// SHEX periods as a statement of facts lists them: each window that
+// overlaps laytime, from its own boundary (so one in progress when laytime
+// commenced starts before it), split where loading was or was not under
+// way, then each window in the week after completion, which only all time
+// saved needs.
 export const AFTER_DAYS = 7;
 export function shexPeriods(fixture, stoppages) {
   if (fixture.shex_basis === 'SHINC') return [];
@@ -199,7 +201,7 @@ export function shexPeriods(fixture, stoppages) {
   const commenced = Math.min(nor + fixture.turn_time_hrs * 60, loadStart);
   const anyStop = union(stoppages.filter((s) => s.voyage_id === fixture.voyage_id).map((s) => [toMin(s.start_time), toMin(s.end_time)]));
   const rows = [];
-  for (const iv of clip(windowInstances(fixture.shex_window, commenced, done), [commenced, done])) {
+  for (const iv of clip(windowInstances(fixture.shex_window, commenced, done), [-Infinity, done])) {
     const worked = subtract(clip([iv], [loadStart, done]), anyStop);
     const idle = subtract([iv], worked);
     for (const [a, b] of worked) rows.push({ a, b, under: true });
@@ -226,7 +228,8 @@ export function deductions(fixture, stoppages) {
   }
   for (const p of shexPeriods(fixture, stoppages).filter((x) => x.phase === 'laytime')) {
     const excepted = fixture.shex_basis === 'SHEX EIU' || !p.loading_under_way;
-    const [a, b] = [toMin(p.start_time), toMin(p.end_time)];
+    const [a, b] = [Math.max(commenced, toMin(p.start_time)), toMin(p.end_time)];
+    if (b <= a) continue;
     out.push({ kind: 'shex', label: fixture.shex_basis, start: a, end: b, minutes: b - a, excepted, loading_under_way: p.loading_under_way });
   }
   return out.sort((x, y) => x.start - y.start);

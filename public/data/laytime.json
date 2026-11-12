@@ -392,7 +392,7 @@
       },
       {
         "voyage_id": "VOY-2604",
-        "start_time": "2026-07-26 02:00",
+        "start_time": "2026-07-25 17:00",
         "end_time": "2026-07-26 10:00",
         "phase": "laytime",
         "loading_under_way": false
@@ -427,7 +427,7 @@
       },
       {
         "voyage_id": "VOY-2606",
-        "start_time": "2026-07-26 02:00",
+        "start_time": "2026-07-25 17:00",
         "end_time": "2026-07-26 10:00",
         "phase": "laytime",
         "loading_under_way": false
@@ -448,7 +448,7 @@
       },
       {
         "voyage_id": "VOY-2608",
-        "start_time": "2026-07-26 02:00",
+        "start_time": "2026-07-26 00:00",
         "end_time": "2026-07-26 10:00",
         "phase": "laytime",
         "loading_under_way": false

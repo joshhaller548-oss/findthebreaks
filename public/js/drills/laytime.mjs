@@ -6,10 +6,15 @@
 // ranges use tokens for last rows: {st_last} stoppages, {sx_last} SHEX
 // periods, {os_last} owner statement.
 
-// Laytime commenced, as an SQL expression on fixtures f
-const COMMENCED = `CASE WHEN DATEADD(hour, f.turn_time_hrs, f.nor_tendered) < f.loading_commenced
-            THEN DATEADD(hour, f.turn_time_hrs, f.nor_tendered)
-            ELSE f.loading_commenced END`;
+// Laytime commenced, as an SQL expression on a fixtures alias
+const commencedOn = (a) => `CASE WHEN DATEADD(hour, ${a}.turn_time_hrs, ${a}.nor_tendered) < ${a}.loading_commenced
+            THEN DATEADD(hour, ${a}.turn_time_hrs, ${a}.nor_tendered)
+            ELSE ${a}.loading_commenced END`;
+const COMMENCED = commencedOn('f');
+
+// A SHEX period can start before laytime commenced; only the part after
+// commencement comes off
+const SHEX_START = `CASE WHEN p.start_time < ${commencedOn('x')} THEN ${commencedOn('x')} ELSE p.start_time END`;
 
 // Laytime used per voyage, the core of drills 5 to 7
 const USED = `SELECT f.voyage_id, f.loading_completed, f.despatch_basis, f.demurrage_rate_usd_per_day,
@@ -21,20 +26,21 @@ const USED = `SELECT f.voyage_id, f.loading_completed, f.despatch_basis, f.demur
              FROM stoppages
              WHERE counts_against_laytime = FALSE
              GROUP BY voyage_id) AS st ON st.voyage_id = f.voyage_id
-  LEFT JOIN (SELECT p.voyage_id, SUM(DATEDIFF(minute, p.start_time, p.end_time)) AS mins
+  LEFT JOIN (SELECT p.voyage_id, SUM(DATEDIFF(minute, ${SHEX_START}, p.end_time)) AS mins
              FROM shex_periods p JOIN fixtures x ON x.voyage_id = p.voyage_id
              WHERE p.phase = 'laytime'
                AND (x.shex_basis = 'SHEX EIU' OR p.loading_under_way = FALSE)
              GROUP BY p.voyage_id) AS sx ON sx.voyage_id = f.voyage_id`;
 
 // The same with a deliberate change, for pitfalls
-const usedWith = ({ stoppages = true, shex = "(x.shex_basis = 'SHEX EIU' OR p.loading_under_way = FALSE)" } = {}) =>
+const usedWith = ({ stoppages = true, shex = "(x.shex_basis = 'SHEX EIU' OR p.loading_under_way = FALSE)", clipped = true } = {}) =>
   USED.replace('- COALESCE(st.mins, 0)', stoppages ? '- COALESCE(st.mins, 0)' : '')
-    .replace("(x.shex_basis = 'SHEX EIU' OR p.loading_under_way = FALSE)", shex);
+    .replace("(x.shex_basis = 'SHEX EIU' OR p.loading_under_way = FALSE)", shex)
+    .replace(SHEX_START, clipped ? SHEX_START : 'p.start_time');
 
 const RESULT = `CASE WHEN t.laytime_used_hrs > t.laytime_allowed_hrs THEN 'demurrage' ELSE 'despatch' END`;
 
-const amountSql = ({ despatchDivisor = 48, ats = 'basis' } = {}) => `SELECT u.voyage_id, u.result,
+const amountSql = ({ despatchDivisor = 48, ats = 'basis', used = USED } = {}) => `SELECT u.voyage_id, u.result,
        ROUND(CASE WHEN u.result = 'demurrage'
                   THEN (u.laytime_used_hrs - u.laytime_allowed_hrs) * u.demurrage_rate_usd_per_day / 24
                   WHEN ${ats === 'basis' ? "u.despatch_basis = 'all time saved'" : ats === 'always' ? '1 = 1' : '1 = 0'}
@@ -43,7 +49,7 @@ const amountSql = ({ despatchDivisor = 48, ats = 'basis' } = {}) => `SELECT u.vo
 FROM (SELECT t.voyage_id, t.laytime_used_hrs, t.laytime_allowed_hrs, t.despatch_basis, t.demurrage_rate_usd_per_day,
              ${RESULT} AS result,
              SUM(DATEDIFF(minute, a.start_time, a.end_time)) AS after_mins
-      FROM (${USED}) AS t
+      FROM (${used}) AS t
       LEFT JOIN shex_periods a ON a.voyage_id = t.voyage_id AND a.phase = 'after completion'
            AND a.start_time < DATEADD(minute, (t.laytime_allowed_hrs - t.laytime_used_hrs) * 60, t.loading_completed)
       GROUP BY t.voyage_id, t.laytime_used_hrs, t.laytime_allowed_hrs, t.despatch_basis, t.demurrage_rate_usd_per_day) AS u`;
@@ -53,7 +59,9 @@ FROM (SELECT t.voyage_id, t.laytime_used_hrs, t.laytime_allowed_hrs, t.despatch_
 // K NOR, L loading start, M completion. Formula columns start at N.
 const X_COMMENCED = '=MIN(K2+J2/24, L2)';
 const X_STOPPAGES = '=SUMPRODUCT((stoppages!$A$2:$A${st_last}=A2)*(stoppages!$E$2:$E${st_last}=FALSE)*(stoppages!$C$2:$C${st_last}-stoppages!$B$2:$B${st_last}))*24';
-const X_SHEX = '=SUMPRODUCT((shex_periods!$A$2:$A${sx_last}=A2)*(shex_periods!$D$2:$D${sx_last}="laytime")*((E2="SHEX EIU")+(E2="SHEX UU")*(shex_periods!$E$2:$E${sx_last}=FALSE))*(shex_periods!$C$2:$C${sx_last}-shex_periods!$B$2:$B${sx_last}))*24';
+// Period length, less any part before commencement (N2)
+const X_SHEX_LEN = '(shex_periods!$C$2:$C${sx_last}-shex_periods!$B$2:$B${sx_last}-(N2>shex_periods!$B$2:$B${sx_last})*(N2-shex_periods!$B$2:$B${sx_last}))';
+const X_SHEX = `=SUMPRODUCT((shex_periods!$A$2:$A\${sx_last}=A2)*(shex_periods!$D$2:$D\${sx_last}="laytime")*((E2="SHEX EIU")+(E2="SHEX UU")*(shex_periods!$E$2:$E\${sx_last}=FALSE))*${X_SHEX_LEN})*24`;
 const X_USED = '=(M2-N2)*24-O2-P2';
 const usedColumns = (usedRole = 'helper') => [
   { name: 'commenced', role: 'helper', type: 'datetime' },
@@ -146,7 +154,7 @@ GROUP BY f.voyage_id`,
     id: 5,
     title: 'Laytime used',
     tag: 'read the terms',
-    question: 'Laytime used on each voyage, and whether it is on demurrage or despatch: voyage_id, laytime_used_hrs, result. Used is elapsed time, minus deductible stoppages, minus the SHEX time the fixture excepts. Read shex_basis: under SHEX EIU every SHEX period inside laytime comes off; under SHEX UU only the periods when loading was not under way; under SHINC none.',
+    question: 'Laytime used on each voyage, and whether it is on demurrage or despatch: voyage_id, laytime_used_hrs, result. Used is elapsed time, minus deductible stoppages, minus the SHEX time the fixture excepts. Read shex_basis: under SHEX EIU every SHEX period inside laytime comes off; under SHEX UU only the periods when loading was not under way; under SHINC none. shex_periods lists each period from the window boundary, as a statement of facts does, so count only the part after laytime commenced.',
     ordered: false,
     caseInsensitive: true,
     hint: {
@@ -154,8 +162,8 @@ GROUP BY f.voyage_id`,
       excel: 'Use the helper columns: commencement, stoppage hours, excepted SHEX hours. The shex_periods sheet lists every SHEX period; which ones come off depends on column E.',
     },
     why: {
-      sql: 'Each LEFT JOIN brings one deduction per voyage and COALESCE makes a missing one zero. The SHEX subquery reads shex_basis: EIU excepts every period, UU only those without loading. The outer query compares used with allowed.',
-      excel: 'The SHEX helper multiplies by (E2="SHEX EIU")+(E2="SHEX UU")*(no loading), so the terms decide which periods come off. Used is elapsed less both deductions.',
+      sql: 'Each LEFT JOIN brings one deduction per voyage and COALESCE makes a missing one zero. The SHEX subquery reads shex_basis: EIU excepts every period, UU only those without loading, and a CASE starts each period no earlier than commencement. The outer query compares used with allowed.',
+      excel: 'The SHEX helper multiplies by (E2="SHEX EIU")+(E2="SHEX UU")*(no loading), so the terms decide which periods come off. Taking off (N2>start)*(N2-start) drops any part before commencement. Used is elapsed less both deductions.',
     },
     sql: `SELECT t.voyage_id, t.laytime_used_hrs,
        ${RESULT} AS result
@@ -250,6 +258,8 @@ const excelAmount = (amount, over = {}) => ({
   amount_usd: amount,
   ...over,
 });
+const X_SHEX_UNCLIPPED = X_SHEX.replace(X_SHEX_LEN, '(shex_periods!$C$2:$C${sx_last}-shex_periods!$B$2:$B${sx_last})');
+const BEFORE_COMMENCED = 'You took off SHEX time from before laytime commenced. A statement of facts lists a period from the window boundary, so one can start before laytime does: only the part after commencement comes off.';
 
 export const pitfalls = [
   // ---------- SQL ----------
@@ -293,6 +303,9 @@ FROM fixtures f LEFT JOIN stoppages s ON s.voyage_id = f.voyage_id GROUP BY f.vo
   { drill: 5, id: 'eiu_as_uu', lang: 'sql', match: 'result',
     message: 'On the SHEX EIU voyages every SHEX period comes off, even if loading carried on. Only SHEX UU counts the time used.',
     sql: usedSqlFrom(usedWith({ shex: 'p.loading_under_way = FALSE' })) },
+  { drill: 5, id: 'shex_before_commenced', lang: 'sql', match: 'result',
+    message: BEFORE_COMMENCED,
+    sql: usedSqlFrom(usedWith({ clipped: false })) },
   { drill: 6, id: 'despatch_full_rate', lang: 'sql', match: 'result',
     message: 'Your despatch figures are double. Despatch is paid at half the demurrage rate.',
     sql: amountSql({ despatchDivisor: 24 }) },
@@ -302,6 +315,12 @@ FROM fixtures f LEFT JOIN stoppages s ON s.voyage_id = f.voyage_id GROUP BY f.vo
   { drill: 6, id: 'all_time_saved_everywhere', lang: 'sql', match: 'result',
     message: 'You added after completion SHEX time on working time saved voyages too. Only all time saved counts it.',
     sql: amountSql({ ats: 'always' }) },
+  { drill: 6, id: 'shex_before_commenced', lang: 'sql', match: 'result',
+    message: BEFORE_COMMENCED,
+    sql: amountSql({ used: usedWith({ clipped: false }) }) },
+  { drill: 7, id: 'shex_before_commenced', lang: 'sql', match: 'result',
+    message: BEFORE_COMMENCED + " Here the owner had it right and your figure was off.",
+    sql: drills[6].sql.replace(USED, usedWith({ clipped: false })) },
   { drill: 7, id: 'all_rows', lang: 'sql', match: 'rows',
     message: "You listed all {got} voyages. Keep only the rows where the owner's figure differs from yours.",
     sql: `SELECT o.voyage_id, o.laytime_used_hrs AS owner_used_hrs, t.laytime_used_hrs, o.laytime_used_hrs - t.laytime_used_hrs AS difference_hrs
@@ -340,16 +359,25 @@ FROM owner_statement o JOIN (${USED}) AS t ON t.voyage_id = o.voyage_id` },
     formulas: excelUsed({ laytime_used_hrs: '=(M2-N2)*24-O2' }) },
   { drill: 5, id: 'uu_as_eiu', lang: 'excel', match: 'result',
     message: 'You excepted every SHEX period on the SHEX UU voyages too. Unless used means time when loading was under way still counts.',
-    formulas: excelUsed({ shex_hrs: '=SUMPRODUCT((shex_periods!$A$2:$A${sx_last}=A2)*(shex_periods!$D$2:$D${sx_last}="laytime")*(shex_periods!$C$2:$C${sx_last}-shex_periods!$B$2:$B${sx_last}))*24' }) },
+    formulas: excelUsed({ shex_hrs: `=SUMPRODUCT((shex_periods!$A$2:$A\${sx_last}=A2)*(shex_periods!$D$2:$D\${sx_last}="laytime")*${X_SHEX_LEN})*24` }) },
   { drill: 5, id: 'eiu_as_uu', lang: 'excel', match: 'result',
     message: 'On the SHEX EIU voyages every SHEX period comes off, even if loading carried on. Only SHEX UU counts the time used.',
-    formulas: excelUsed({ shex_hrs: '=SUMPRODUCT((shex_periods!$A$2:$A${sx_last}=A2)*(shex_periods!$D$2:$D${sx_last}="laytime")*(shex_periods!$E$2:$E${sx_last}=FALSE)*(shex_periods!$C$2:$C${sx_last}-shex_periods!$B$2:$B${sx_last}))*24' }) },
+    formulas: excelUsed({ shex_hrs: `=SUMPRODUCT((shex_periods!$A$2:$A\${sx_last}=A2)*(shex_periods!$D$2:$D\${sx_last}="laytime")*(shex_periods!$E$2:$E\${sx_last}=FALSE)*${X_SHEX_LEN})*24` }) },
+  { drill: 5, id: 'shex_before_commenced', lang: 'excel', match: 'result',
+    message: BEFORE_COMMENCED,
+    formulas: excelUsed({ shex_hrs: X_SHEX_UNCLIPPED }) },
   { drill: 6, id: 'despatch_full_rate', lang: 'excel', match: 'result',
     message: 'Your despatch figures are double. Despatch is paid at half the demurrage rate.',
     formulas: excelAmount('=IF(R2="demurrage", (Q2-C2/D2*24)*I2/24, IF(G2="all time saved", C2/D2*24-Q2+S2, C2/D2*24-Q2)*I2/24)') },
   { drill: 6, id: 'ignored_all_time_saved', lang: 'excel', match: 'result',
     message: 'On all time saved voyages, time saved includes the SHEX time after completion that would have been excepted. You paid them on laytime saved only.',
     formulas: excelAmount('=IF(R2="demurrage", (Q2-C2/D2*24)*I2/24, (C2/D2*24-Q2)*I2/48)') },
+  { drill: 6, id: 'shex_before_commenced', lang: 'excel', match: 'result',
+    message: BEFORE_COMMENCED,
+    formulas: excelAmount(drills[5].excel.model.amount_usd, { shex_hrs: X_SHEX_UNCLIPPED }) },
+  { drill: 7, id: 'shex_before_commenced', lang: 'excel', match: 'result',
+    message: BEFORE_COMMENCED + " Here the owner had it right and your figure was off.",
+    formulas: { ...drills[6].excel.model, shex_hrs: X_SHEX_UNCLIPPED } },
   { drill: 7, id: 'no_keep_filter', lang: 'excel', match: 'rows',
     message: "You kept all {got} voyages. Keep only the rows where the owner's figure differs from yours.",
     formulas: { ...usedModel, owner_used_hrs: '=VLOOKUP(A2, owner_statement!$A:$D, 4, FALSE)', difference_hrs: '=ROUND(R2-Q2, 2)', keep: '=TRUE' } },
