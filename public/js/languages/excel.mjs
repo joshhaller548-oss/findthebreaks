@@ -32,24 +32,60 @@ function display(column, v, type) {
   return formatCell(column, v) ?? '';
 }
 
-function sheetView(L, tables, out) {
+// The base-sheet columns a drill works from: column A, the columns its
+// answer returns, and every same-sheet column the model formulas refer to.
+// References into other sheets (stoppages!$A$2:...) do not count.
+export function usedColumns(drill, L) {
+  const used = new Set([0]);
+  for (const name of drill.excel.project || []) {
+    const i = L.headers.indexOf(name);
+    if (i >= 0) used.add(i);
+  }
+  const index = (col) => [...col].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  for (const f of Object.values(drill.excel.model || {})) {
+    const local = String(f).replace(/[A-Za-z_]+!\$?[A-Z]{1,3}\$?(\d+|\{\w+\})?(:\$?[A-Z]{1,3}\$?(\d+|\{\w+\})?)?/g, ' ');
+    for (const m of local.matchAll(/\$?\b([A-Z]{1,3})\$?(\d+)\b/g)) {
+      const i = index(m[1]);
+      if (i < L.headers.length) used.add(i);
+    }
+  }
+  return used;
+}
+
+// opts.visible: the base columns to show (all when absent); hidden runs are
+// marked as Excel marks hidden columns. opts.scrollRight opens the sheet on
+// the formula columns. opts.toggle draws the show all / used columns switch.
+function sheetView(L, tables, out, opts = {}) {
   const view = out?.view;
   const errCell = out && !out.ok ? out.error?.cell : null;
   const base = tables[L.base];
-  const cols = [...L.headers.map((name, i) => ({ name, letter: letter(i), user: false })), ...L.columns.map((c) => ({ name: c.name, letter: c.letter, user: true, type: c.type }))];
-  const head = h('tr', {}, h('th', { class: 'corner', scope: 'col' }, ''), cols.map((c) => h('th', { scope: 'col', class: c.user ? 'user' : null }, c.letter)));
-  const names = h('tr', { class: 'names' }, h('th', { scope: 'row', class: 'rownum' }, '1'), cols.map((c) => h('td', { class: c.user ? 'user' : null }, c.name)));
+  const show = (i) => !opts.visible || opts.visible.has(i);
+  const baseCols = L.headers.map((name, i) => ({ name, i, letter: letter(i), user: false })).filter((c) => show(c.i));
+  baseCols.forEach((c, k) => { c.gap = k > 0 && baseCols[k - 1].i !== c.i - 1; });
+  const userCols = L.columns.map((c, u) => ({ name: c.name, letter: c.letter, user: true, type: c.type, role: c.role, u }));
+  if (userCols.length && baseCols.length && baseCols[baseCols.length - 1].i !== L.headers.length - 1) userCols[0].gap = true;
+  const cols = [...baseCols, ...userCols];
+  const cls = (c, more = '') => [c.user ? 'user' : '', c.gap ? 'gap-before' : '', more].filter(Boolean).join(' ') || null;
+  // On a compact sheet a date and time breaks onto two lines, so time
+  // columns stay narrow
+  const stampOf = (t) => (opts.compact && typeof t === 'string' ? /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/.exec(t) : null);
+  const head = h('tr', {}, h('th', { class: 'corner', scope: 'col' }, ''), cols.map((c) => h('th', { scope: 'col', class: cls(c), 'data-col': c.letter }, c.letter)));
+  // Long column names may break after an underscore, so a column is only as
+  // wide as its data
+  const breakable = (name) => name.split('_').flatMap((part, i, a) => (i < a.length - 1 ? [`${part}_`, h('wbr', {})] : [part]));
+  const names = h('tr', { class: 'names' }, h('th', { scope: 'row', class: 'rownum' }, '1'), cols.map((c) => h('td', { class: cls(c), 'data-col': c.letter }, breakable(c.name))));
   const body = base.map((r, i) => {
     const excelRow = i + 2;
     const g = view?.grid?.[i];
     const kept = view?.kept?.has(excelRow);
     return h('tr', { class: kept ? 'kept' : null },
       h('th', { scope: 'row', class: 'rownum' }, kept ? `▸${excelRow}` : String(excelRow)),
-      cols.map((c, k) => {
-        const v = c.user ? g?.user?.[k - L.headers.length] : r[c.name];
+      cols.map((c) => {
+        const v = c.user ? g?.user?.[c.u] : r[c.name];
         const cell = `${c.letter}${excelRow}`;
-        const cls = [c.user ? 'user' : '', typeof v === 'number' ? 'num' : '', isError(v) ? 'err' : '', cell === errCell ? 'err-focus' : ''].filter(Boolean).join(' ');
-        return h('td', { class: cls || null }, display(c.name, v, c.type));
+        const t = display(c.name, v, c.type);
+        const st = stampOf(t);
+        return h('td', { class: cls(c, [typeof v === 'number' ? 'num' : '', isError(v) ? 'err' : '', cell === errCell ? 'err-focus' : '', st ? 'dt' : ''].filter(Boolean).join(' ')), 'data-col': c.letter }, st ? [h('span', { class: 'nw' }, st[1]), ' ', h('span', { class: 'nw' }, st[2])] : t);
       }),
     );
   });
@@ -67,13 +103,40 @@ function sheetView(L, tables, out) {
   }
   const keptCount = view?.kept ? view.kept.size : null;
   const caption = `${L.base} sheet${keptCount !== null ? `, ${keptCount} row${keptCount === 1 ? '' : 's'} kept` : ''}`;
-  // The caption sits outside the scrolling area, which starts scrolled right
+  // The caption sits outside the scrolling area
   const wrap = h('div', { class: 'table-wrap sheet-wrap', tabindex: '0', role: 'region', 'aria-label': caption },
     h('table', { class: 'data sheet' }, h('thead', {}, head), h('tbody', {}, rows)),
   );
-  // Show the formula columns, which sit at the right edge
-  requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
-  return h('div', {}, h('p', { class: 'sheet-caption' }, caption, keptCount ? h('span', { class: 'muted' }, ', marked \u25B8 and shaded') : null), wrap);
+  // Where every column shows, open on the formula columns at the right edge
+  if (opts.scrollRight) requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
+  // Otherwise, on a sheet wider than the page, pin the answer columns to the
+  // right edge while the data scrolls between them and column A, if they
+  // leave room for the data. Optional working columns scroll with the data.
+  if (opts.pinAnswers) {
+    requestAnimationFrame(() => {
+      if (wrap.scrollWidth <= wrap.clientWidth + 1) return;
+      const pin = userCols.filter((c) => c.role !== 'helper');
+      const width = (c) => wrap.querySelector(`thead th[data-col="${c.letter}"]`)?.getBoundingClientRect().width ?? 0;
+      const left = wrap.querySelector('thead th.corner').getBoundingClientRect().width + width(baseCols[0]);
+      const total = pin.reduce((n, c) => n + width(c), 0);
+      if (!pin.length || left + total > wrap.clientWidth * 0.75) return;
+      let right = 0;
+      for (const c of [...pin].reverse()) {
+        for (const cell of wrap.querySelectorAll(`[data-col="${c.letter}"]`)) {
+          cell.classList.add('pinned');
+          cell.style.right = `${right}px`;
+        }
+        right += width(c);
+      }
+      wrap.querySelectorAll(`[data-col="${pin[0].letter}"]`).forEach((cell) => cell.classList.add('pinned-edge'));
+    });
+  }
+  return h('div', {},
+    h('p', { class: 'sheet-caption' }, caption, keptCount ? h('span', { class: 'muted' }, ', marked \u25B8 and shaded') : null,
+      opts.toggle ? h('span', { class: 'sheet-toggle' },
+        h('span', { class: 'muted' }, opts.visible ? ' \u00B7 showing the columns this drill uses ' : ' \u00B7 all columns '),
+        h('button', { class: 'btn quiet small', type: 'button', onclick: opts.toggle }, opts.visible ? 'Show all columns' : 'Show only the columns used')) : null),
+    wrap);
 }
 
 export const excelLanguage = {
@@ -155,13 +218,28 @@ export const excelLanguage = {
         el,
       );
     }));
-    const result = h('div', { class: 'result' }, sheetView(L, tables, null));
+    // On a wide sheet, show the columns the drill works from beside the
+    // formula columns, starting at column A, with a switch to show them all
+    const trim = drill.sheetColumns === 'used';
+    const used = trim ? usedColumns(drill, L) : null;
+    let all = !trim;
+    let lastOut = null;
+    const result = h('div', { class: 'result' });
+    const draw = () => result.replaceChildren(sheetView(L, tables, lastOut, {
+      visible: all ? null : used,
+      scrollRight: !trim,
+      pinAnswers: trim,
+      compact: trim,
+      toggle: trim ? () => { all = !all; draw(); } : null,
+    }));
+    draw();
     return {
       input,
       result,
       value: () => ({ ...state }),
       show(out) {
-        result.replaceChildren(sheetView(L, tables, out));
+        lastOut = out;
+        draw();
       },
     };
   },

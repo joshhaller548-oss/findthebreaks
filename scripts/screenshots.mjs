@@ -364,6 +364,40 @@ for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconcilia
   await page.close();
 }
 
+// ---------- laytime drills under Desk tools: trimmed sheet, reference tables ----------
+{
+  const page = await open({ width: 390, height: 844, mobile: true });
+  await go(page, 1, 'excel', 'laytime/tools');
+  await new Promise((r) => setTimeout(r, 300));
+  const sheet = await page.evaluate(() => {
+    const wrap = document.querySelector('.sheet-wrap');
+    const letters = [...wrap.querySelectorAll('thead th')].map((t) => t.textContent).filter(Boolean);
+    const n = [...wrap.querySelectorAll('thead th')].find((t) => t.textContent === 'N').getBoundingClientRect();
+    const w = wrap.getBoundingClientRect();
+    return { letters: letters.join(''), scrolled: wrap.scrollLeft, nInView: n.right <= w.right + 1 && n.left >= w.left - 1 };
+  });
+  log('laytime sheet 390px', `columns ${sheet.letters}, scrolled ${sheet.scrolled}px, N in view ${sheet.nInView}`);
+  expectThat('laytime drill 1 sheet shows voyage_id, cargo and rate beside the formula column, from column A', sheet.letters === 'ACDN' && sheet.scrolled === 0 && sheet.nInView);
+  await page.screenshot({ path: `${OUT}/20-laytime-sheet-390.png`, fullPage: true });
+  await page.click('.sheet-toggle .btn');
+  expectThat('Show all columns brings back every column', (await page.$$eval('.sheet-wrap thead th', (ths) => ths.filter((t) => t.textContent).length)) === 14);
+  const returns = await page.$eval('.returns', (e) => e.innerText.replace(/\s+/g, ' ')).catch(() => '');
+  expectThat(`the drill names its columns on a Return line (${returns})`, returns.includes('voyage_id') && returns.includes('laytime_allowed_hrs'));
+  const tabs = await page.$$eval('.reference .ref-tabs .tab', (ts) => ts.map((t) => { const r = t.getBoundingClientRect(); return r.right <= innerWidth && r.left >= 0; }));
+  expectThat(`every reference tab is in view at 390px (${tabs.length})`, tabs.length === 4 && tabs.every(Boolean));
+  const cap = await page.$eval('.reference caption', (e) => e.textContent);
+  expectThat(`a wide reference table says it scrolls (${cap})`, /scroll sideways for more/.test(cap));
+  const frozen = await page.evaluate(() => {
+    const wrap = document.querySelector('.reference .table-wrap');
+    wrap.scrollLeft = 400;
+    const c = wrap.querySelector('tbody td').getBoundingClientRect();
+    return c.left >= wrap.getBoundingClientRect().left - 1;
+  });
+  expectThat('the reference table keeps its first column in view when scrolled', frozen);
+  await page.screenshot({ path: `${OUT}/20-laytime-reference-390.png`, fullPage: true });
+  await page.close();
+}
+
 // ---------- laytime desk: name, title, glossary, briefing, ledger ----------
 for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
   const ctx = await browser.createBrowserContext();

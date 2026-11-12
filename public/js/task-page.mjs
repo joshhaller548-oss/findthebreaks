@@ -124,6 +124,13 @@ export function mountTaskPage(cfg) {
       }, l.label)),
     );
 
+    // The question in desk language, then the columns to return on a line of
+    // their own when the drill names them
+    const question = (x, lead = null) => [
+      h('p', { class: 'question' }, lead, text(x.question)),
+      x.returns ? h('p', { class: 'returns' }, h('span', { class: 'returns-label' }, 'Return'), x.returns.map((c) => h('code', {}, c))) : null,
+    ];
+
     const head = h('header', { class: 'work-head' },
       h('p', { class: 'eyebrow' }, `Drill ${d.id}`, h('span', { class: 'tag' }, d.tag)),
       h('h2', {}, d.title),
@@ -134,7 +141,7 @@ export function mountTaskPage(cfg) {
       return;
     }
     if (d.kind === 'text') {
-      els.work.replaceChildren(head, h('p', { class: 'question' }, text(d.question)), cfg.renderTextDrill(d, {
+      els.work.replaceChildren(head, ...question(d).filter(Boolean), cfg.renderTextDrill(d, {
         status: () => store.status(task, d.id, 'text'),
         saved: () => store.lastAnswer(task, d.id, 'text'),
         save: (value) => store.saveAnswer(task, d.id, 'text', value),
@@ -147,8 +154,8 @@ export function mountTaskPage(cfg) {
     const target = currentDrill();
     const parts = [tabs, head];
     if (d.timed) parts.push(timedBar(d));
-    else parts.push(h('p', { class: 'question' }, text(d.question)));
-    if (d.timed) parts.push(h('p', { class: 'question' }, h('strong', {}, `Drill ${target.id}, ${target.title}. `), text(target.question)));
+    else parts.push(...question(d).filter(Boolean));
+    if (d.timed) parts.push(...question(target, h('strong', {}, `Drill ${target.id}, ${target.title}. `)).filter(Boolean));
 
     const hint = h('p', { class: 'hint', hidden: !state.hint }, h('strong', {}, 'Hint. '), text(target.hint?.[lang.id]));
 
@@ -376,7 +383,7 @@ export function mountTaskPage(cfg) {
     const names = Object.keys(data.tables);
     let active = names[0];
     const body = h('div', {});
-    const tabs = h('div', { class: 'tabs small', role: 'tablist', 'aria-label': 'Reference tables' });
+    const tabs = h('div', { class: 'tabs small ref-tabs', role: 'tablist', 'aria-label': 'Reference tables' });
     const draw = () => {
       tabs.replaceChildren(...names.map((n) => h('button', {
         role: 'tab',
@@ -386,7 +393,14 @@ export function mountTaskPage(cfg) {
       }, n, h('span', { class: 'count' }, String(data.tables[n].length)))));
       const rows = data.tables[active];
       const cols = Object.keys(rows[0]);
-      body.replaceChildren(dataTable(cols, rows.map((r) => cols.map((c) => r[c])), { caption: `${active}, ${plural(rows.length, 'row')}` }));
+      body.replaceChildren(dataTable(cols, rows.map((r) => cols.map((c) => r[c])), { caption: `${active}, ${plural(rows.length, 'row')}, ${plural(cols.length, 'column')}` }));
+      // Say so when the table is wider than the page, rather than let the
+      // last columns look cut off
+      requestAnimationFrame(() => {
+        const wrap = body.querySelector('.table-wrap');
+        const cap = body.querySelector('caption');
+        if (wrap && cap && wrap.scrollWidth > wrap.clientWidth + 1) cap.append(h('span', { class: 'more-cols' }, ' \u00B7 scroll sideways for more \u2192'));
+      });
     };
     draw();
     els.reference.replaceChildren(
