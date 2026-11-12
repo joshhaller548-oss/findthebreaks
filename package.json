@@ -1,0 +1,12 @@
+{
+  "name": "findthebreaks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-reconciliation.mjs",
+    "verify": "node scripts/verify-reconciliation.mjs"
+  },
+  "devDependencies": {
+    "alasql": "4.21.1"
+  }
+}
