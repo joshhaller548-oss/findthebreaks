@@ -151,7 +151,7 @@ export function mountTaskPage(cfg) {
         hintBtn.setAttribute('aria-expanded', state.hint ? 'true' : 'false');
       },
     }, 'Hint');
-    const answerBtn = h('button', { class: 'btn quiet', onclick: () => revealStep(answerBtn, answer, target, lang) }, 'Show answer');
+    const answerBtn = h('button', { class: 'btn quiet reveal', onclick: () => revealStep(answerBtn, answer, target, lang) }, 'Show answer');
     renderReveal(answerBtn, answer, target, lang);
 
     parts.push(
@@ -175,8 +175,11 @@ export function mountTaskPage(cfg) {
   }
 
   // Show answer is always two deliberate clicks
+  // Revealing only changes what is on screen. It never ticks a drill or a
+  // chip; only a correct run does. In a timed run it disqualifies the run.
   function revealStep(btn, box, drill, lang) {
     state.reveal = Math.min(2, state.reveal + 1);
+    if (state.reveal === 2 && state.timed && !state.timed.done) state.timed.revealed.add(drill.id);
     renderReveal(btn, box, drill, lang);
   }
   function renderReveal(btn, box, drill, lang) {
@@ -185,7 +188,10 @@ export function mountTaskPage(cfg) {
       box.replaceChildren();
     } else if (state.reveal === 1) {
       btn.textContent = 'Yes, reveal the model answer';
-      box.replaceChildren(h('p', { class: 'muted small' }, 'Try the hint first. Once revealed, the answer stays on screen for this drill.'));
+      const warning = state.timed && !state.timed.done
+        ? 'Revealing an answer during a timed run means the run will not count.'
+        : 'Try the hint first. Once revealed, the answer stays on screen for this drill.';
+      box.replaceChildren(h('p', { class: 'muted small' }, warning));
     } else {
       btn.hidden = true;
       box.replaceChildren(
@@ -217,7 +223,7 @@ export function mountTaskPage(cfg) {
         renderList();
         onProgress();
       }
-      showCorrect(verdictEl, drill, parent);
+      showCorrect(verdictEl, drill, parent, out.notes || []);
       return;
     }
     const diag = diagnose(res, { drill, user: out, pitfalls, lang: lang.id });
@@ -234,16 +240,18 @@ export function mountTaskPage(cfg) {
     ));
   }
 
-  function showCorrect(el, drill, parent) {
+  function showCorrect(el, drill, parent, notes = []) {
     const body = [h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, '✓'), 'Correct')];
     if (parent.timed) {
       const t = state.timed;
       const last = t.step === parent.timed.length - 1;
       t.splits[t.step] = performance.now() - t.start;
-      body.push(h('p', {}, `Drill ${drill.id} done at ${clock(t.splits[t.step])}.`));
+      const revealed = t.revealed.has(drill.id) ? ' You revealed the answer, so this run will not count.' : '';
+      body.push(h('p', {}, `Drill ${drill.id} done at ${clock(t.splits[t.step])}.${revealed}`));
       body.push(h('button', { class: 'btn primary', onclick: () => (last ? finishTimed() : nextTimed()) }, last ? 'Finish' : 'Next drill'));
     } else {
       body.push(h('p', {}, cfg.correctNote?.(drill) || 'Your result matches the answer key.'));
+      for (const n of notes) body.push(h('p', { class: 'note' }, h('strong', {}, 'Note. '), n));
       const next = byId.get(drill.id + 1);
       if (next) body.push(h('button', { class: 'btn', onclick: () => selectDrill(next.id, { scroll: true }) }, `Next: drill ${next.id}`));
     }
@@ -281,7 +289,7 @@ export function mountTaskPage(cfg) {
   }
 
   function startTimed() {
-    state.timed = { step: 0, start: performance.now(), splits: [], done: false };
+    state.timed = { step: 0, start: performance.now(), splits: [], revealed: new Set(), done: false };
     for (const k of [...state.drafts.keys()]) if (k.startsWith('timed:')) state.drafts.delete(k);
     state.reveal = 0;
     state.hint = false;
@@ -302,19 +310,30 @@ export function mountTaskPage(cfg) {
     const t = state.timed;
     clearInterval(t.tick);
     t.done = true;
-    store.markComplete(task, d.id, state.lang);
-    renderList();
+    const revealed = d.timed.filter((id) => t.revealed.has(id));
+    // A run counts only if no answer was revealed. The clock never stops a
+    // run: past the target it keeps going and the finish reports the overrun.
+    if (!revealed.length) {
+      store.markComplete(task, d.id, state.lang);
+      renderList();
+    }
     const total = t.splits[t.splits.length - 1];
     const target = d.targetMinutes * 60000;
-    const rows = d.timed.map((id, k) => [`Drill ${id}`, byId.get(id).title, clock(t.splits[k] - (t.splits[k - 1] || 0)), clock(t.splits[k])]);
+    const under = total <= target && !revealed.length;
+    const rows = d.timed.map((id, k) => [`Drill ${id}`, byId.get(id).title, clock(t.splits[k] - (t.splits[k - 1] || 0)), clock(t.splits[k]), t.revealed.has(id) ? 'revealed' : '']);
+    const verdictText = revealed.length
+      ? `Not counted: you revealed the answer on drill ${revealed.join(', ')}. Run it again without revealing to count it.`
+      : total <= target
+        ? 'Under target.'
+        : `Over target by ${clock(total - target)}. It still counts as finished. Run it again once the moves feel automatic.`;
     els.work.replaceChildren(
       els.work.firstChild,
       h('header', { class: 'work-head' }, h('p', { class: 'eyebrow' }, `Drill ${d.id}`), h('h2', {}, 'Timed run finished')),
-      h('div', { class: `v ${total <= target ? 'v-correct' : 'v-wrong'}` },
-        h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, total <= target ? '✓' : '✗'), `${clock(total)} against a target of ${clock(target)}`),
-        h('p', {}, total <= target ? 'Under target.' : `Over target by ${clock(total - target)}. Run it again once the moves feel automatic.`),
+      h('div', { class: `v ${under ? 'v-correct' : 'v-wrong'}` },
+        h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, under ? '✓' : '✗'), `${clock(total)} against a target of ${clock(target)}`),
+        h('p', {}, verdictText),
       ),
-      dataTable(['drill', 'title', 'split', 'elapsed'], rows, { caption: 'Splits' }),
+      dataTable(['drill', 'title', 'split', 'elapsed', 'answer'], rows, { caption: 'Splits' }),
       h('button', { class: 'btn', onclick: startTimed }, 'Run it again'),
     );
   }

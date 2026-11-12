@@ -5,7 +5,7 @@
   "scripts": {
     "generate": "node scripts/generate-reconciliation.mjs",
     "verify": "node scripts/verify-reconciliation.mjs",
-    "test": "node scripts/test-checker.mjs",
+    "test": "node scripts/test-drill9.mjs && node scripts/test-checker.mjs",
     "serve": "node scripts/serve.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },

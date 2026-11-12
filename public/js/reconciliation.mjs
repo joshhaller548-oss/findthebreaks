@@ -9,6 +9,7 @@ import { sqlLanguage } from './languages/sql.mjs';
 const languages = [sqlLanguage];
 
 const TASK = 'reconciliation';
+const FICTION_NOTE = 'Counterparties, vessels and invoices are invented. Any match with a real company or ship is coincidence. Ports and grades are real.';
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const word = (n) => WORDS[n] ?? String(n);
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
@@ -33,6 +34,7 @@ async function main() {
     getJSON('/data/reconciliation.key.json'),
   ]);
   const counts = countsFrom(data, key);
+  const cleared = store.syncKey(TASK, key.fingerprint);
 
   const chips = h('ul', { class: 'chips', 'aria-label': 'Planted breaks' });
   const drawChips = () => {
@@ -55,6 +57,7 @@ async function main() {
     h('p', {}, `${cap(word(counts.n_breaks))} breaks across ${word(counts.n_break_types)} types are planted in ${counts.n_cargoes} cargoes and ${counts.n_invoices} invoices. They are the heart of the task. The mix is deliberate: it is what an operator actually finds.`),
     chips,
     h('p', { class: 'muted small' }, 'Answers are checked on the result, not the wording of your code. Any query that returns the right rows passes, whatever you call the columns.'),
+    cleared ? h('p', { class: 'notice', role: 'status' }, 'The answer key has changed since your last visit, so your earlier ticks were cleared. Your saved answers are still in the editors.') : null,
   );
 
   // The teaching panel after drill 3. The figure in it comes from the key.
@@ -81,7 +84,7 @@ async function main() {
     panels: { 3: syntaxPanel },
     // Solving drill 3 shows the panel again, in the working area
     afterCorrect: (drill) => (drill.id === 3 ? syntaxPanel() : null),
-    referenceNote: 'Counterparties, vessels and invoices are fictional. Ports and grades are real.',
+    referenceNote: FICTION_NOTE,
     onProgress: drawChips,
     els: {
       list: document.getElementById('drills'),

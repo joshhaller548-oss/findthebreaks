@@ -7,6 +7,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { drills, pitfalls, DRILL_1_PORT } from '../public/js/drills/reconciliation.mjs';
 
 const require = createRequire(import.meta.url);
@@ -61,6 +62,10 @@ check('incoterm FOB, CFR or CIF', cargoes.every((c) => ['FOB', 'CFR', 'CIF'].inc
 const cpNames = new Set(counterparties.map((p) => p.counterparty));
 check('every cargo counterparty exists in counterparties', cargoes.every((c) => cpNames.has(c.counterparty)));
 check('every invoice counterparty exists in counterparties', invoices.every((i) => cpNames.has(i.counterparty)));
+check('every table and column name is lower case (the SQL tab relies on it to be case insensitive)',
+  Object.entries(data.tables).every(([t, rows]) => t === t.toLowerCase() && rows.every((r) => Object.keys(r).every((k) => k === k.toLowerCase()))));
+check('no invoice has a NULL or blank cargo_id, so NOT IN behaves the same here as in Postgres and SQL Server',
+  invoices.every((i) => typeof i.cargo_id === 'string' && i.cargo_id.trim() !== ''));
 check('no leading or trailing whitespace in any string', [...cargoes, ...invoices, ...counterparties].every((r) => Object.values(r).every((v) => typeof v !== 'string' || v === v.trim())));
 
 // ---------- 2. derive the breaks from the data alone ----------
@@ -188,6 +193,8 @@ for (const d of drills) {
   check(`drill ${d.id} SQL reproduces committed key`, eq(fresh.columns, key.expected[d.id].columns) && eq(fresh.rows, key.expected[d.id].rows));
 }
 check(`key built with the pinned engine (${key.engine})`, key.engine === `alasql ${alasql.version}`);
+const fp = createHash('sha256').update(JSON.stringify({ planted: key.planted, expected: key.expected })).digest('hex').slice(0, 16);
+check(`key fingerprint matches its contents (${key.fingerprint}), so saved ticks clear when the key changes`, key.fingerprint === fp);
 const reserved = drills.filter((d) => d.sql && /\bAS\s+total\b/i.test(d.sql));
 check('no model answer aliases a column AS total (AlaSQL reserved word)', reserved.length === 0);
 
@@ -225,14 +232,45 @@ const files = [...walkFiles('public/'), ...walkFiles('scripts/'), 'vercel.json',
 const dashed = files.filter((f) => !dashFree(readFileSync(new URL(f, root), 'utf8')));
 check(`no em or en dashes in ${files.length} site and script files`, dashed.length === 0, dashed.join(', '));
 
-// Counts in hint text must come from the key. Drill numbers are allowed.
-const stripDrillRefs = (t) => t.replace(/\bdrills? \d+( (to|and) \d+)?/gi, '').replace(/\{\w+\}/g, '');
+// Counts in hint text must come from the key, as {tokens}. This scans the
+// templates as written in the drill file, never the text after filling.
+// It flags what looks like a count: a number followed by a counted noun
+// ("27 rows", "three cargoes") or any number of two or more digits. Code
+// is left alone: `backtick spans`, function calls like ROUND(x, 2), and
+// small thresholds like > 1 pass. Drill numbers ("drill 4") pass.
+const COUNTED = '(rows?|cargo(es)?|invoices?|counterpart(y|ies)|columns?|breaks?|types?|groups?|records?|voyages?|fixtures?|tonnes|MT)';
+const SPELLED = '(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty)';
+function hardCodedCount(t) {
+  const s = t
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/\b[A-Z][A-Z_]*\s*\([^()]*\)/g, ' ')
+    .replace(/\bdrills? \d+( (to|and) \d+)?/gi, ' ')
+    .replace(/\{\w+\}/g, ' ');
+  return new RegExp(`\\b\\d[\\d,.]*\\s+${COUNTED}\\b`, 'i').test(s)
+    || new RegExp(`\\b${SPELLED}\\s+${COUNTED}\\b`, 'i').test(s)
+    || /\b\d{2,}/.test(s);
+}
+const ruleCases = [
+  ['ROUND(x, 2) keeps two decimal places.', false],
+  ['HAVING COUNT(*) > 1 keeps the duplicates.', false],
+  ['Use `LIMIT 10` to look at a few rows.', false],
+  ['The same move as drill 4, turned around.', false],
+  ['You got {got} rows.', false],
+  ['Keep the groups with more than one invoice.', false],
+  ['You got 27 rows.', true],
+  ['There are three cargoes missing.', true],
+  ['The total is 6,602,233.90.', true],
+  ['Expected 3 rows.', true],
+];
+const ruleWrong = ruleCases.filter(([t, want]) => hardCodedCount(t) !== want);
+check(`no-hard-coded-count rule behaves on ${ruleCases.length} sample sentences`, ruleWrong.length === 0, ruleWrong.map(([t]) => t).join(' | '));
+
 const texts = [
   ...drills.flatMap((d) => [...Object.values(d.hint || {}), ...Object.values(d.why || {})].map((t) => [`drill ${d.id} hint/why`, t])),
   ...pitfalls.filter((q) => q.message).map((q) => [`pitfall ${q.drill}/${q.id}`, q.message]),
 ];
-const counted = texts.filter(([, t]) => /\d/.test(stripDrillRefs(t)));
-check(`no hard-coded numbers in ${texts.length} hint, explanation and pitfall texts`, counted.length === 0, counted.map(([l]) => l).join(', '));
+const counted = texts.filter(([, t]) => hardCodedCount(t));
+check(`no hard-coded counts in ${texts.length} hint, explanation and pitfall templates`, counted.length === 0, counted.map(([l]) => l).join(', '));
 
 const retired = ['Drummond', 'Andino', 'Highveld', 'Nordmark', 'Borneo Bara', 'Marmara'];
 const raw = readFileSync(new URL('public/data/reconciliation.json', root), 'utf8');

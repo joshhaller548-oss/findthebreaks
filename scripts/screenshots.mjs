@@ -69,9 +69,9 @@ await shotWork(page, '05-drill6-where-count');
 await go(page, 9);
 await answer(page, 'SELECT SUM(c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price) AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
 console.log('drill 9, row by row  :', await verdictText(page));
-await page.click('.work .btn.quiet');
+await page.click('.work .btn.reveal');
 const firstClick = await page.$eval('.answer', (el) => el.innerText.trim());
-await page.click('.work .btn.quiet');
+await page.click('.work .btn.reveal');
 const revealed = await page.$eval('.answer', (el) => el.innerText.replace(/\s+/g, ' ').trim());
 console.log('show answer, click 1 :', firstClick);
 console.log('show answer, click 2 :', revealed.slice(0, 120) + '...');
@@ -112,6 +112,120 @@ await go(dark, 7);
 await answer(dark, 'SELECT c.cargo_id, c.bl_tonnage, i.invoiced_tonnage, c.bl_tonnage - i.invoiced_tonnage AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE c.bl_tonnage <> i.invoiced_tonnage');
 console.log('drill 7, sign flipped:', await verdictText(dark));
 await dark.screenshot({ path: `${OUT}/10-desktop-dark-drill7.png`, fullPage: false });
+
+// ---------- review checks, each in a clean browser profile ----------
+
+const { drills } = await import('../public/js/drills/reconciliation.mjs');
+const model = (id) => drills.find((d) => d.id === id).sql;
+async function fresh() {
+  const ctx = await browser.createBrowserContext();
+  const p = await ctx.newPage();
+  await p.setViewport({ width: 1360, height: 900 });
+  p.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
+  return { ctx, p };
+}
+const saved = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('findthebreaks:progress') || 'null'));
+const ticked = (p) => p.$$eval('.drill .status.done', (els) => els.length);
+const clickNext = (p) => p.click('.verdict .btn.primary');
+const reveal = async (p) => { await p.click('.work .btn.reveal'); await p.click('.work .btn.reveal'); };
+
+// 3a. Show answer alone never ticks a drill or a chip
+{
+  const { ctx, p } = await fresh();
+  await go(p, 5);
+  await reveal(p);
+  const shown = await p.$eval('.answer pre', (el) => el.innerText.length > 0);
+  const s = await saved(p);
+  const chip = await p.$$eval('.chip.found', (els) => els.length);
+  console.log('reveal only, drill 5 :', `answer shown ${shown}, ticks ${await ticked(p)}, found chips ${chip}, stored completions ${Object.keys(s?.complete || {}).length}`);
+  if (!shown || (await ticked(p)) || chip || Object.keys(s?.complete || {}).length) problems.push('Show answer ticked something');
+  await ctx.close();
+}
+
+// 3b. A revealed answer in a timed run disqualifies the run
+{
+  const { ctx, p } = await fresh();
+  await go(p, 10);
+  await p.click('.work .btn.primary');
+  await p.waitForSelector('.timed-bar');
+  await p.click('.work .btn.reveal');
+  const warning = await p.$eval('.answer', (el) => el.innerText.trim());
+  await p.click('.work .btn.reveal');
+  await answer(p, model(4));
+  console.log('timed, reveal warning:', warning);
+  console.log('timed, after reveal  :', await verdictText(p));
+  for (const id of [5, 6, 7, 8]) {
+    await clickNext(p);
+    await p.waitForSelector('.timed-bar');
+    await answer(p, model(id));
+  }
+  await clickNext(p);
+  await p.waitForSelector('.work .v');
+  const end = await p.$eval('.work .v', (el) => el.innerText.replace(/\s+/g, ' ').trim());
+  const done10 = (await saved(p))?.complete?.['reconciliation:10:sql'];
+  console.log('timed, finish        :', end, `| drill 10 stored complete: ${!!done10}`);
+  await (await p.$('.layout')).screenshot({ path: `${OUT}/11-timed-revealed-not-counted.png` });
+  if (done10) problems.push('timed run with a reveal was counted');
+  await ctx.close();
+}
+
+// 7. The timed run past 10:00: fast forward the clock, then finish
+{
+  const { ctx, p } = await fresh();
+  await go(p, 10);
+  await p.click('.work .btn.primary');
+  await p.waitForSelector('.timed-bar');
+  await p.evaluate(() => {
+    const real = performance.now.bind(performance);
+    performance.now = () => real() + 10 * 60000 + 5000;
+  });
+  await new Promise((r) => setTimeout(r, 600));
+  const clockState = await p.$eval('.clock', (el) => `${el.textContent} class="${el.className}" shown as "${getComputedStyle(el, '::after').content}"`);
+  console.log('timed, past 10:00    :', clockState);
+  await (await p.$('.work')).screenshot({ path: `${OUT}/12-timed-past-target.png` });
+  for (const id of [4, 5, 6, 7, 8]) {
+    if (id !== 4) { await clickNext(p); await p.waitForSelector('.timed-bar'); }
+    await answer(p, model(id));
+  }
+  await clickNext(p);
+  await p.waitForSelector('.work .v');
+  const end = await p.$eval('.work .v', (el) => el.innerText.replace(/\s+/g, ' ').trim());
+  const done10 = (await saved(p))?.complete?.['reconciliation:10:sql'];
+  console.log('timed, finish late   :', end, `| drill 10 stored complete: ${!!done10}`);
+  if (!done10) problems.push('a clean but slow timed run was not counted');
+  await ctx.close();
+}
+
+// 4. Saved progress from an older answer key loses its ticks, keeps answers
+{
+  const { ctx, p } = await fresh();
+  // Same URL with a hash does not reload, so reload explicitly
+  const reload = async () => {
+    await p.reload({ waitUntil: 'networkidle0' });
+    await p.waitForFunction(() => document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled);
+  };
+  await go(p, 4);
+  await p.evaluate(() => localStorage.setItem('findthebreaks:progress', JSON.stringify({
+    schema: 2,
+    keys: { reconciliation: 'old-key-0000' },
+    complete: { 'reconciliation:4:sql': true, 'reconciliation:5:sql': true },
+    answers: { 'reconciliation:4:sql': 'SELECT 1 -- saved under the old key' },
+  })));
+  await reload();
+  const notice = await p.$eval('.notice', (el) => el.innerText).catch(() => '(no notice)');
+  const editor = await p.$eval('.editor', (el) => el.value);
+  const s = await saved(p);
+  console.log('old key, reload      :', `ticks ${await ticked(p)}, stored completions ${Object.keys(s.complete).length}, key now ${s.keys.reconciliation}, editor "${editor}"`);
+  console.log('old key, notice      :', notice);
+  await reload();
+  const second = await p.$('.notice');
+  console.log('old key, next reload :', second ? 'notice shown again (wrong)' : 'no notice');
+  if ((await ticked(p)) || Object.keys(s.complete).length || second) problems.push('stale ticks survived a key change');
+  await p.evaluate(() => localStorage.setItem('findthebreaks:progress', JSON.stringify({ schema: 1, complete: { 'reconciliation:4:sql': true }, answers: {} })));
+  await reload();
+  console.log('old schema, reload   :', `ticks ${await ticked(p)}`);
+  await ctx.close();
+}
 
 await browser.close();
 if (problems.length) {

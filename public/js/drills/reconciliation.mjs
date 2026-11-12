@@ -16,7 +16,7 @@ export const drills = [
     question: `List every cargo loading at ${DRILL_1_PORT}: cargo_id, vessel and bl_tonnage only.`,
     ordered: false,
     hint: { sql: 'WHERE keeps only the rows that pass a test. Text goes in single quotes and must match exactly, capitals and spaces included.' },
-    why: { sql: 'WHERE filters the rows, and naming the three columns instead of * returns only what was asked for.' },
+    why: { sql: 'WHERE filters the rows, and naming the columns the question asks for, instead of *, returns only what was asked for.' },
     sql: `SELECT cargo_id, vessel, bl_tonnage
 FROM cargoes
 WHERE load_port = '${DRILL_1_PORT}'`,

@@ -251,6 +251,8 @@ footer.site {
 .compare dd:last-child { border-bottom: 0; }
 .compare code { font: 0.8rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .verdict .panel { margin-top: 0; }
+.v .note { border-top: 1px solid var(--rule); padding-top: 0.5rem; font-size: 0.9rem; }
+.notice { border: 1px solid var(--rule-strong); background: var(--surface-2); padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 
 /* ---------- working area ---------- */
 

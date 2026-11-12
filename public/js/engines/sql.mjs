@@ -10,6 +10,12 @@ const RESERVED_HINTS = {
 };
 
 export function createSqlEngine(alasql, tables) {
+  // SQL identifiers are case insensitive, so CARGO_ID must work. With this
+  // off, AlaSQL lower cases every table, column and alias name as it parses.
+  // That is safe because every name in the data is lower case (verify checks
+  // it). String literals are untouched: 'Puerto Bolivar' still matches exactly.
+  alasql.options.casesensitive = false;
+
   const tableNames = Object.keys(tables);
   const knownColumns = new Set(tableNames.flatMap((t) => Object.keys(tables[t][0] || {})));
   const listTables = joinWords(tableNames);
@@ -48,7 +54,8 @@ export function createSqlEngine(alasql, tables) {
     }
     const columns = [];
     for (const row of out) for (const k of Object.keys(row)) if (!columns.includes(k)) columns.push(k);
-    return { ok: true, columns, rows: out.map((r) => columns.map((c) => r[c])) };
+    const notes = [notInNullNote(sql, tables)].filter(Boolean);
+    return { ok: true, columns, rows: out.map((r) => columns.map((c) => r[c])), notes };
   }
 
   // Catch what AlaSQL lets through silently or reports badly.
@@ -59,7 +66,7 @@ export function createSqlEngine(alasql, tables) {
     const tableRefs = new Set(nodes.filter((n) => typeof n.tableid === 'string' && !('columnid' in n)).map((n) => n.tableid));
 
     for (const t of tableRefs) {
-      if (!tableNames.includes(t)) {
+      if (!tableNames.includes(t.toLowerCase())) {
         const near = tableNames.find((n) => n.toLowerCase() === t.toLowerCase() || n.startsWith(t) || t.startsWith(n.slice(0, -1)));
         return fail('no_table', `There is no table called ${t}.${near ? ` Did you mean ${near}?` : ''} The tables are ${listTables}.`);
       }
@@ -69,12 +76,8 @@ export function createSqlEngine(alasql, tables) {
       if (!(n instanceof alasql.yy.Column)) continue;
       const col = n.columnid;
       if (col === '*' || typeof col !== 'string') continue;
-      if (knownColumns.has(col) || aliases.has(col)) continue;
-      const lower = [...knownColumns].find((k) => k === col.toLowerCase());
-      const msg = lower
-        ? `There is no column called ${col}. Column names are lower case here: ${lower}.`
-        : `There is no column called ${col}. This engine returns blanks instead of an error for a misspelt column, so check the spelling against the tables below.`;
-      return fail('no_column', msg);
+      if (knownColumns.has(col.toLowerCase()) || aliases.has(col) || aliases.has(col.toLowerCase())) continue;
+      return fail('no_column', `There is no column called ${col}. This engine returns blanks instead of an error for a misspelt column, so check the spelling against the tables below.`);
     }
 
     for (const st of ast.statements || []) {
@@ -99,6 +102,20 @@ function walk(node, out, seen = new Set()) {
   seen.add(node);
   if (!Array.isArray(node)) out.push(node);
   for (const k of Object.keys(node)) walk(node[k], out, seen);
+}
+
+// AlaSQL answers NOT IN as if NULLs were absent. Postgres and SQL Server
+// return no rows at all when the subquery yields a NULL. Warn only when the
+// column the subquery selects really holds a NULL in this data.
+export const NOT_IN_NOTE = 'Works here, but NOT IN returns nothing if the subquery has a NULL. NOT EXISTS or LEFT JOIN … IS NULL is safer.';
+
+export function notInNullNote(sql, tables) {
+  const re = /\bNOT\s+IN\s*\(\s*SELECT\s+(?:DISTINCT\s+)?(?:\w+\.)?(\w+)\s+FROM\s+(\w+)/gi;
+  for (const [, col, table] of sql.matchAll(re)) {
+    const rows = tables[table.toLowerCase()];
+    if (rows?.some((r) => r[col.toLowerCase()] === null || r[col.toLowerCase()] === undefined)) return NOT_IN_NOTE;
+  }
+  return null;
 }
 
 function fail(code, message) {

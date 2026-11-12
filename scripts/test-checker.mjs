@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { drills, pitfalls } from '../public/js/drills/reconciliation.mjs';
 import { compare, diagnose } from '../public/js/check.mjs';
-import { createSqlEngine } from '../public/js/engines/sql.mjs';
+import { createSqlEngine, NOT_IN_NOTE } from '../public/js/engines/sql.mjs';
 
 const require = createRequire(import.meta.url);
 const alasql = require('alasql');
@@ -22,7 +22,7 @@ function judge(id, sql) {
   const exp = { ...key.expected[id], ordered: d.ordered };
   const res = compare(out, exp);
   const diag = diagnose(res, { drill: d, user: out, pitfalls: key.pitfalls.map((p) => ({ ...p, ...pitfalls.find((q) => q.drill === p.drill && q.id === p.id) })), lang: 'sql' });
-  return { verdict: res.verdict, shapeOk: res.shapeOk, code: diag?.code, message: diag?.message };
+  return { verdict: res.verdict, shapeOk: res.shapeOk, code: diag?.code, message: diag?.message, notes: out.notes.length };
 }
 
 let fails = 0;
@@ -57,7 +57,10 @@ expect('drill 2 ascending', 2, `SELECT counterparty, SUM(bl_tonnage) AS t FROM c
 expect('drill 2 no ORDER BY', 2, `SELECT counterparty, SUM(bl_tonnage) AS t FROM cargoes GROUP BY counterparty`, { verdict: 'wrong', code: 'wrong_order' });
 expect('drill 2 AS total', 2, `SELECT counterparty, SUM(bl_tonnage) AS total FROM cargoes GROUP BY counterparty ORDER BY total DESC`, { verdict: 'error', code: 'parse' });
 expect('drill 4 misspelt column', 4, `SELECT c.cargoid, c.vessel, c.counterparty FROM cargoes c LEFT JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoice_no IS NULL`, { verdict: 'error', code: 'no_column' });
-expect('drill 4 upper case column', 4, `SELECT CARGO_ID FROM cargoes`, { verdict: 'error', code: 'no_column' });
+expect('drill 4 upper case everything, NOT IN', 4, `SELECT CARGO_ID, VESSEL, COUNTERPARTY FROM CARGOES WHERE CARGO_ID NOT IN (SELECT CARGO_ID FROM INVOICES)`, { verdict: 'correct', notes: 0 });
+expect('drill 4 mixed case aliases and columns', 4, `SELECT C.Cargo_Id, C.Vessel, C.Counterparty FROM Cargoes C LEFT JOIN Invoices I ON C.CARGO_ID = I.cargo_id WHERE I.Invoice_No IS NULL`, { verdict: 'correct' });
+expect('drill 2 alias in different case in ORDER BY', 2, `SELECT counterparty, SUM(bl_tonnage) AS Tonnes FROM cargoes GROUP BY counterparty ORDER BY TONNES DESC`, { verdict: 'correct' });
+expect('drill 1 upper case misspelling still errors', 1, `SELECT CARGOID, VESSEL, BL_TONNAGE FROM CARGOES WHERE LOAD_PORT = 'Puerto Bolivar'`, { verdict: 'error', code: 'no_column' });
 expect('drill 4 singular table name', 4, `SELECT * FROM cargo`, { verdict: 'error', code: 'no_table' });
 expect('drill 6 WHERE COUNT', 6, `SELECT cargo_id, COUNT(*) AS n FROM invoices WHERE COUNT(*) > 1 GROUP BY cargo_id`, { verdict: 'error', code: 'where_aggregate' });
 expect('drill 7 BL minus invoiced', 7, `SELECT c.cargo_id, c.bl_tonnage, i.invoiced_tonnage, c.bl_tonnage - i.invoiced_tonnage AS d FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoiced_tonnage <> c.bl_tonnage`, { verdict: 'wrong', code: 'sign_flip' });
@@ -69,6 +72,21 @@ expect('data intact after the DELETE', 1, drill(1).sql, { verdict: 'correct' });
 expect('empty editor', 1, `   `, { verdict: 'error', code: 'empty' });
 expect('unfinished query', 1, `SELECT cargo_id FROM cargoes WHERE`, { verdict: 'error', code: 'parse' });
 
+// NOT IN with a NULL in the subquery: same query, data with one blank key
+{
+  const withNull = structuredClone(data.tables);
+  withNull.invoices[0].cargo_id = null;
+  const out = createSqlEngine(alasql, withNull).run(`SELECT cargo_id FROM cargoes WHERE cargo_id NOT IN (SELECT cargo_id FROM invoices)`);
+  const ok = out.ok && out.notes.length === 1 && out.notes[0] === NOT_IN_NOTE;
+  if (!ok) fails++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  NOT IN note appears when the subquery column holds a NULL`);
+  if (ok) console.log(`        "${out.notes[0]}"`);
+  const plain = engine.run(`SELECT cargo_id FROM cargoes WHERE cargo_id NOT IN (SELECT cargo_id FROM invoices)`);
+  const quiet = plain.ok && plain.notes.length === 0;
+  if (!quiet) fails++;
+  console.log(`${quiet ? 'PASS' : 'FAIL'}  NOT IN note stays off on the real data, which has no NULL cargo_id`);
+}
+
 for (const c of cases) {
   const got = judge(c.id, c.sql);
   const ok = Object.entries(c.want).every(([k, v]) => got[k] === v);
@@ -77,5 +95,5 @@ for (const c of cases) {
   if (got.message) console.log(`        "${got.message}"`);
   if (!ok) console.log(`        wanted ${JSON.stringify(c.want)}`);
 }
-console.log(`\n${cases.length - fails} passed, ${fails} failed.`);
+console.log(`\n${cases.length + 2 - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

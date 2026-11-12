@@ -8,6 +8,7 @@
 // Seeded, so a rerun produces byte identical output. Run verify afterwards.
 
 import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { drills, pitfalls } from '../public/js/drills/reconciliation.mjs';
 
@@ -290,9 +291,15 @@ const data = {
   seed: SEED,
   tables,
 };
+// Saved ticks are tied to this. If any expected result or planted break
+// changes, the fingerprint changes and the page clears old ticks.
+const fingerprintOf = (planted, expected) =>
+  createHash('sha256').update(JSON.stringify({ planted, expected })).digest('hex').slice(0, 16);
+
 const key = {
   generated_by: 'scripts/generate-reconciliation.mjs',
   seed: SEED,
+  fingerprint: fingerprintOf(planted, expected),
   engine: `alasql ${alasql.version}`,
   planted,
   expected,
