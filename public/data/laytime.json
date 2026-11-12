@@ -1,0 +1,451 @@
+{
+  "generated_by": "scripts/generate-laytime.mjs",
+  "seed": 20260601,
+  "tables": {
+    "fixtures": [
+      {
+        "voyage_id": "VOY-2601",
+        "vessel": "Sea Falcon",
+        "cargo_mt": 62500,
+        "load_rate_mt_per_day": 20000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sun 00:00 to 24:00",
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 19500,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-09-09 21:00",
+        "loading_commenced": "2026-09-10 05:00",
+        "loading_completed": "2026-09-14 00:00"
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "vessel": "Iron Meridian",
+        "cargo_mt": 62500,
+        "load_rate_mt_per_day": 20000,
+        "shex_basis": "SHEX UU",
+        "shex_window": "Sun 00:00 to 24:00",
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 19500,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-09-09 21:00",
+        "loading_commenced": "2026-09-10 05:00",
+        "loading_completed": "2026-09-14 00:00"
+      },
+      {
+        "voyage_id": "VOY-2603",
+        "vessel": "Cape Orchid",
+        "cargo_mt": 57500,
+        "load_rate_mt_per_day": 10000,
+        "shex_basis": "SHINC",
+        "shex_window": null,
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 20000,
+        "turn_time_hrs": 6,
+        "nor_tendered": "2026-10-02 21:00",
+        "loading_commenced": "2026-10-02 23:00",
+        "loading_completed": "2026-10-09 16:00"
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "vessel": "Atlantic Grace",
+        "cargo_mt": 50000,
+        "load_rate_mt_per_day": 8000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sat 17:00 to Mon 08:00",
+        "despatch_basis": "all time saved",
+        "demurrage_rate_usd_per_day": 27000,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-07-25 14:00",
+        "loading_commenced": "2026-07-26 10:00",
+        "loading_completed": "2026-08-01 08:00"
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "vessel": "Rio Cesar",
+        "cargo_mt": 42500,
+        "load_rate_mt_per_day": 10000,
+        "shex_basis": "SHEX UU",
+        "shex_window": "Sun 00:00 to 24:00",
+        "despatch_basis": "all time saved",
+        "demurrage_rate_usd_per_day": 16500,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-10-13 10:30",
+        "loading_commenced": "2026-10-14 06:30",
+        "loading_completed": "2026-10-21 22:00"
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "vessel": "Star Magdalena",
+        "cargo_mt": 50000,
+        "load_rate_mt_per_day": 8000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sat 17:00 to Mon 08:00",
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 27000,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-07-25 14:00",
+        "loading_commenced": "2026-07-26 10:00",
+        "loading_completed": "2026-08-01 08:00"
+      },
+      {
+        "voyage_id": "VOY-2607",
+        "vessel": "Bulk Andes",
+        "cargo_mt": 57500,
+        "load_rate_mt_per_day": 10000,
+        "shex_basis": "SHINC",
+        "shex_window": null,
+        "despatch_basis": "all time saved",
+        "demurrage_rate_usd_per_day": 19500,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-06-14 08:00",
+        "loading_commenced": "2026-06-14 18:00",
+        "loading_completed": "2026-06-22 11:00"
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "vessel": "Silver Tern",
+        "cargo_mt": 50000,
+        "load_rate_mt_per_day": 8000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sun 00:00 to 24:00",
+        "despatch_basis": "all time saved",
+        "demurrage_rate_usd_per_day": 27000,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-07-25 14:00",
+        "loading_commenced": "2026-07-26 10:00",
+        "loading_completed": "2026-08-01 08:00"
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "vessel": "Nord Harmony",
+        "cargo_mt": 57500,
+        "load_rate_mt_per_day": 12000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sat 17:00 to Mon 08:00",
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 24000,
+        "turn_time_hrs": 12,
+        "nor_tendered": "2026-07-17 23:00",
+        "loading_commenced": "2026-07-18 14:00",
+        "loading_completed": "2026-07-24 14:00"
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "vessel": "Ionian Spirit",
+        "cargo_mt": 40000,
+        "load_rate_mt_per_day": 8000,
+        "shex_basis": "SHEX EIU",
+        "shex_window": "Sun 00:00 to 24:00",
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 21500,
+        "turn_time_hrs": 6,
+        "nor_tendered": "2026-07-15 21:00",
+        "loading_commenced": "2026-07-16 11:00",
+        "loading_completed": "2026-07-21 14:30"
+      },
+      {
+        "voyage_id": "VOY-2611",
+        "vessel": "Baltic Wave",
+        "cargo_mt": 40000,
+        "load_rate_mt_per_day": 8000,
+        "shex_basis": "SHINC",
+        "shex_window": null,
+        "despatch_basis": "working time saved",
+        "demurrage_rate_usd_per_day": 21500,
+        "turn_time_hrs": 6,
+        "nor_tendered": "2026-07-15 21:00",
+        "loading_commenced": "2026-07-16 11:00",
+        "loading_completed": "2026-07-21 14:30"
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "vessel": "Ocean Pioneer",
+        "cargo_mt": 67500,
+        "load_rate_mt_per_day": 15000,
+        "shex_basis": "SHEX UU",
+        "shex_window": "Sat 17:00 to Mon 08:00",
+        "despatch_basis": "all time saved",
+        "demurrage_rate_usd_per_day": 28500,
+        "turn_time_hrs": 6,
+        "nor_tendered": "2026-08-10 06:00",
+        "loading_commenced": "2026-08-10 20:00",
+        "loading_completed": "2026-08-16 07:00"
+      }
+    ],
+    "stoppages": [
+      {
+        "voyage_id": "VOY-2601",
+        "start": "2026-09-10 08:30",
+        "end": "2026-09-10 14:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2601",
+        "start": "2026-09-11 20:00",
+        "end": "2026-09-12 00:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "start": "2026-09-10 08:30",
+        "end": "2026-09-10 14:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "start": "2026-09-11 20:00",
+        "end": "2026-09-12 00:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2603",
+        "start": "2026-10-03 12:30",
+        "end": "2026-10-03 20:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2603",
+        "start": "2026-10-05 17:00",
+        "end": "2026-10-06 00:30",
+        "reason": "swell",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "start": "2026-07-28 12:30",
+        "end": "2026-07-28 20:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "start": "2026-10-14 00:00",
+        "end": "2026-10-14 05:00",
+        "reason": "berth congestion",
+        "counts_against_laytime": true
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "start": "2026-10-15 03:30",
+        "end": "2026-10-15 12:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "start": "2026-10-16 11:30",
+        "end": "2026-10-16 14:00",
+        "reason": "breakdown",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "start": "2026-07-28 12:30",
+        "end": "2026-07-28 20:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2607",
+        "start": "2026-06-19 02:00",
+        "end": "2026-06-19 04:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "start": "2026-07-28 12:30",
+        "end": "2026-07-28 20:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "start": "2026-07-20 15:30",
+        "end": "2026-07-20 19:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "start": "2026-07-21 03:00",
+        "end": "2026-07-21 06:30",
+        "reason": "breakdown",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "start": "2026-07-16 05:00",
+        "end": "2026-07-16 09:30",
+        "reason": "berth congestion",
+        "counts_against_laytime": true
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "start": "2026-07-17 00:00",
+        "end": "2026-07-18 00:00",
+        "reason": "public holiday",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "start": "2026-07-20 19:30",
+        "end": "2026-07-21 03:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2611",
+        "start": "2026-07-16 05:00",
+        "end": "2026-07-16 09:30",
+        "reason": "berth congestion",
+        "counts_against_laytime": true
+      },
+      {
+        "voyage_id": "VOY-2611",
+        "start": "2026-07-17 00:00",
+        "end": "2026-07-18 00:00",
+        "reason": "public holiday",
+        "counts_against_laytime": true
+      },
+      {
+        "voyage_id": "VOY-2611",
+        "start": "2026-07-20 19:30",
+        "end": "2026-07-21 03:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start": "2026-08-10 16:00",
+        "end": "2026-08-10 19:30",
+        "reason": "berth congestion",
+        "counts_against_laytime": true
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start": "2026-08-11 07:00",
+        "end": "2026-08-11 09:30",
+        "reason": "shifting",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start": "2026-08-12 09:30",
+        "end": "2026-08-12 17:30",
+        "reason": "rain",
+        "counts_against_laytime": false
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "start": "2026-08-13 09:00",
+        "end": "2026-08-13 16:00",
+        "reason": "rain",
+        "counts_against_laytime": false
+      }
+    ],
+    "owner_statement": [
+      {
+        "voyage_id": "VOY-2601",
+        "laytime_commenced": "2026-09-10 05:00",
+        "laytime_allowed_hrs": 75,
+        "laytime_used_hrs": 57.5,
+        "result": "despatch",
+        "amount_usd": 7109.38
+      },
+      {
+        "voyage_id": "VOY-2602",
+        "laytime_commenced": "2026-09-10 05:00",
+        "laytime_allowed_hrs": 75,
+        "laytime_used_hrs": 81.5,
+        "result": "demurrage",
+        "amount_usd": 5281.25
+      },
+      {
+        "voyage_id": "VOY-2603",
+        "laytime_commenced": "2026-10-02 23:00",
+        "laytime_allowed_hrs": 138,
+        "laytime_used_hrs": 153.5,
+        "result": "demurrage",
+        "amount_usd": 12916.67
+      },
+      {
+        "voyage_id": "VOY-2604",
+        "laytime_commenced": "2026-07-26 02:00",
+        "laytime_allowed_hrs": 150,
+        "laytime_used_hrs": 112,
+        "result": "despatch",
+        "amount_usd": 43312.5
+      },
+      {
+        "voyage_id": "VOY-2605",
+        "laytime_commenced": "2026-10-13 10:30",
+        "laytime_allowed_hrs": 102,
+        "laytime_used_hrs": 192,
+        "result": "demurrage",
+        "amount_usd": 61875
+      },
+      {
+        "voyage_id": "VOY-2606",
+        "laytime_commenced": "2026-07-26 02:00",
+        "laytime_allowed_hrs": 150,
+        "laytime_used_hrs": 112,
+        "result": "despatch",
+        "amount_usd": 21375
+      },
+      {
+        "voyage_id": "VOY-2607",
+        "laytime_commenced": "2026-06-14 18:00",
+        "laytime_allowed_hrs": 138,
+        "laytime_used_hrs": 182.5,
+        "result": "demurrage",
+        "amount_usd": 36156.25
+      },
+      {
+        "voyage_id": "VOY-2608",
+        "laytime_commenced": "2026-07-26 02:00",
+        "laytime_allowed_hrs": 150,
+        "laytime_used_hrs": 120,
+        "result": "despatch",
+        "amount_usd": 30375
+      },
+      {
+        "voyage_id": "VOY-2609",
+        "laytime_commenced": "2026-07-18 11:00",
+        "laytime_allowed_hrs": 115,
+        "laytime_used_hrs": 140,
+        "result": "demurrage",
+        "amount_usd": 25000
+      },
+      {
+        "voyage_id": "VOY-2610",
+        "laytime_commenced": "2026-07-16 03:00",
+        "laytime_allowed_hrs": 120,
+        "laytime_used_hrs": 76,
+        "result": "despatch",
+        "amount_usd": 19708.33
+      },
+      {
+        "voyage_id": "VOY-2611",
+        "laytime_commenced": "2026-07-16 03:00",
+        "laytime_allowed_hrs": 120,
+        "laytime_used_hrs": 124,
+        "result": "demurrage",
+        "amount_usd": 3583.33
+      },
+      {
+        "voyage_id": "VOY-2612",
+        "laytime_commenced": "2026-08-10 12:00",
+        "laytime_allowed_hrs": 108,
+        "laytime_used_hrs": 121.5,
+        "result": "demurrage",
+        "amount_usd": 16031.25
+      }
+    ]
+  }
+}

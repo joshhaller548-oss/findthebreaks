@@ -1,0 +1,7 @@
+{
+  "status": "provisional",
+  "note": "Defaults for the worked example only. Every fixture states its own terms. Change these three values here and nowhere else; the worked example, the JS calculator and the Python check all read this file.",
+  "shex_basis": "SHEX EIU",
+  "despatch_basis": "working time saved",
+  "shex_window": "Sun 00:00 to 24:00"
+}

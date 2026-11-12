@@ -1,0 +1,18 @@
+{
+  "note": "The worked example from the brief. Terms come from config/laytime-defaults.json; the contrast panel changes only shex_basis. loading_commenced is not stated in the brief; it is set after laytime commenced so the clock starts on turn time, and loading runs through Sunday so SHEX UU counts it.",
+  "fixture": {
+    "voyage_id": "EXAMPLE",
+    "vessel": "Worked example",
+    "cargo_mt": 50000,
+    "load_rate_mt_per_day": 10000,
+    "demurrage_rate_usd_per_day": 25000,
+    "turn_time_hrs": 12,
+    "nor_tendered": "2026-06-01 08:00",
+    "loading_commenced": "2026-06-02 06:00",
+    "loading_completed": "2026-06-07 14:00"
+  },
+  "stoppages": [
+    { "voyage_id": "EXAMPLE", "start": "2026-06-03 09:00", "end": "2026-06-03 15:00", "reason": "rain", "counts_against_laytime": false }
+  ],
+  "contrast": { "shex_basis": "SHEX UU" }
+}
