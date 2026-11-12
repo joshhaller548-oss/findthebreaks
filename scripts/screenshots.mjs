@@ -1,230 +1,265 @@
 // Drives the reconciliation page in headless Chrome against the local
 // server: types real answers, clicks Run, and saves screenshots. Fails if
-// the page logs an error or scrolls sideways at phone width.
+// the page logs an error, scrolls sideways at phone width, or any check
+// below goes the wrong way.
 //
 //   npm run serve            (in another terminal)
 //   npm run screenshots -- <output dir>
 
 import puppeteer from 'puppeteer-core';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { drills } from '../public/js/drills/reconciliation.mjs';
+import { countsFrom, fill } from '../public/js/check.mjs';
 
 const BASE = process.env.BASE || 'http://localhost:4173';
 const OUT = process.argv[2] || 'screenshots';
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 mkdirSync(OUT, { recursive: true });
 
+const root = new URL('../public/', import.meta.url);
+const data = JSON.parse(readFileSync(new URL('data/reconciliation.json', root), 'utf8'));
+const key = JSON.parse(readFileSync(new URL('data/reconciliation.key.json', root), 'utf8'));
+const counts = countsFrom(data, key);
+const byId = (id) => drills.find((d) => d.id === id);
+const sqlModel = (id) => byId(id).sql;
+const excelModel = (id) => {
+  const x = byId(id).excel;
+  return [...x.columns.map((c) => x.model[c.name] || ''), ...(x.total ? [x.model.total] : [])].map((f) => fill(f, counts));
+};
+
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
 const problems = [];
+const expectThat = (label, ok) => { if (!ok) problems.push(label); };
 
-async function open({ width, height, dark = false, mobile = false }) {
-  const page = await browser.newPage();
+async function open({ width = 1360, height = 900, dark = false, mobile = false, context = null } = {}) {
+  const page = await (context || browser).newPage();
   await page.setViewport({ width, height, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }]);
   page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text()}`));
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   return page;
 }
-
-async function go(page, drill) {
-  await page.goto(`${BASE}/reconciliation#drill-${drill}`, { waitUntil: 'networkidle0' });
-  await page.waitForFunction(() => document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled);
+const ready = async (page) => {
+  await page.waitForFunction(() => document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled, { timeout: 20000 });
+  await noStrayText(page);
+};
+// JS leaking into the page: null, undefined, [object Object], NaN. SQL NULL cells are upper case.
+async function noStrayText(page) {
+  const text = await page.evaluate(() => document.body.innerText);
+  const hit = /\b(null|undefined|NaN)\b|\[object Object\]/.exec(text);
+  if (hit) problems.push(`stray "${hit[0]}" on the page near: ${text.slice(Math.max(0, hit.index - 60), hit.index + 20).replace(/\s+/g, ' ')}`);
 }
-
-async function answer(page, sql) {
-  await page.$eval('.editor', (el) => { el.value = ''; });
-  await page.type('.editor', sql, { delay: 0 });
+async function go(page, drill, lang = 'excel') {
+  await page.goto(`${BASE}/reconciliation#drill-${drill}`, { waitUntil: 'networkidle0' });
+  await ready(page);
+  if (lang === 'sql') await tab(page, 'SQL');
+}
+async function tab(page, label) {
+  const tabs = await page.$$('.work .tabs .tab');
+  for (const t of tabs) if ((await t.evaluate((el) => el.textContent)) === label) await t.click();
+  await ready(page);
+}
+async function sql(page, text) {
+  await page.$eval('.editor', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.type('.editor', text, { delay: 0 });
   await page.click('.work .btn.primary');
   await page.waitForSelector('.verdict .v');
+  await noStrayText(page);
+}
+async function excel(page, values) {
+  const inputs = await page.$$('.formula');
+  for (let i = 0; i < inputs.length; i++) {
+    await inputs[i].evaluate((el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    if (values[i]) await inputs[i].type(values[i], { delay: 0 });
+  }
+  await page.click('.work .btn.primary');
+  await page.waitForSelector('.verdict .v');
+  await noStrayText(page);
+}
+const verdict = (page) => page.$eval('.verdict', (el) => el.innerText.replace(/\s+/g, ' ').trim());
+const shot = (page, sel, name) => page.$(sel).then((el) => el.screenshot({ path: `${OUT}/${name}.png` }));
+const statusOf = (page, n) => page.$$eval('.drill .status', (els, i) => els[i - 1].className, n);
+const log = (label, text) => console.log(`${label.padEnd(24)}: ${text}`);
+
+// ---------- Excel, desktop light ----------
+{
+  const page = await open();
+  await go(page, 1);
+  const tabs = await page.$$eval('.work .tabs .tab', (els) => els.map((e) => `${e.textContent}${e.getAttribute('aria-selected') === 'true' ? '*' : ''}`));
+  log('tabs (selected *)', tabs.join(' | '));
+  expectThat('Excel is the first and default tab', tabs[0] === 'Excel*');
+  await page.screenshot({ path: `${OUT}/01-excel-drill1.png` });
+
+  await go(page, 4);
+  await excel(page, ['=COUNTIF(invoices!$B:$B, A2)']);
+  log('excel 4, no =0', await verdict(page));
+  await shot(page, '.work', '02-excel-drill4-count-not-zero');
+  await excel(page, ['=COUNTIF(invoices!$B:$B, A2)=0']);
+  log('excel 4, =0', await verdict(page));
+  const chip = await page.$$eval('.chip.found', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+  log('found chips', chip.join(' | '));
+  expectThat('drill 4 in Excel marks the missing invoice chip', chip.some((c) => c.includes('Missing invoice')));
+  await shot(page, '.work', '03-excel-drill4-correct');
+
+  await go(page, 2);
+  await excel(page, ['=SUMIFS(cargoes!$F$1:$F$30, cargoes!$C$1:$C$30, A2)']);
+  log('excel 2, header range', await verdict(page));
+
+  await go(page, 3);
+  await excel(page, ['=VLOOKUP($C2, counterparties!$A:$D, 2)', '=VLOOKUP($C2, counterparties!$A:$D, 4)']);
+  log('excel 3, no FALSE', await verdict(page));
+
+  await go(page, 7);
+  await excel(page, ['=SUMIFS(cargoes!$F:$F, cargoes!$A:$A, B2)', '=D2-G2', '=H2<>0']);
+  log('excel 7, SUMIFS orphan', await verdict(page));
+  await excel(page, excelModel(7));
+  log('excel 7, model', await verdict(page));
+  await shot(page, '.layout', '04-excel-drill7-correct-sheet');
+
+  await go(page, 9);
+  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, F2*J2-VLOOKUP(A2, invoices!B:E, 3, FALSE)*VLOOKUP(A2, invoices!B:E, 4, FALSE))', `=SUM(K2:K${counts.cg_last})`]);
+  log('excel 9, first match', await verdict(page));
+  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, F2*J2-SUMPRODUCT((invoices!B:B=A2)*invoices!D:D*invoices!E:E))', `=SUM(K2:K${counts.cg_last})`]);
+  log('excel 9, whole columns', await verdict(page));
+  await shot(page, '.work', '05-excel-drill9-error');
+
+  await go(page, 3);
+  await excel(page, excelModel(3));
+  log('excel 3, model', (await verdict(page)).slice(0, 60) + '...');
+  await page.close();
 }
 
-const shotWork = (page, name) => page.$('.layout').then((el) => el.screenshot({ path: `${OUT}/${name}.png` }));
-const verdictText = (page) => page.$eval('.verdict', (el) => el.innerText.replace(/\s+/g, ' ').trim());
+// ---------- SQL still works ----------
+{
+  const page = await open();
+  await go(page, 4, 'sql');
+  await sql(page, 'SELECT c.cargo_id, c.vessel, c.counterparty FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
+  log('sql 4, inner join', await verdict(page));
+  await sql(page, 'SELECT CARGO_ID, VESSEL, COUNTERPARTY FROM CARGOES WHERE CARGO_ID NOT IN (SELECT CARGO_ID FROM INVOICES)');
+  log('sql 4, upper case NOT IN', await verdict(page));
+  await go(page, 9, 'sql');
+  await sql(page, 'SELECT SUM(c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price) AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
+  log('sql 9, row by row', await verdict(page));
+  await shot(page, '.work', '06-sql-drill9-row-by-row');
+  await page.close();
+}
 
-// Desktop, light
-const page = await open({ width: 1360, height: 900 });
-await go(page, 1);
-await page.screenshot({ path: `${OUT}/01-landing-drill1.png`, fullPage: false });
-
-await go(page, 4);
-await answer(page, 'SELECT c.cargo_id, c.vessel, c.counterparty FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
-console.log('drill 4, inner join  :', await verdictText(page));
-await shotWork(page, '02-drill4-inner-join');
-
-await answer(page, 'SELECT c.cargo_id, c.vessel, c.counterparty\nFROM cargoes c\nLEFT JOIN invoices i ON c.cargo_id = i.cargo_id\nWHERE i.invoice_no IS NULL');
-console.log('drill 4, left join   :', await verdictText(page));
-await page.screenshot({ path: `${OUT}/03-drill4-correct.png`, fullPage: false });
-
-await go(page, 2);
-await answer(page, 'SELECT counterparty, SUM(bl_tonnage) AS total FROM cargoes GROUP BY counterparty ORDER BY total DESC');
-console.log('drill 2, AS total    :', await verdictText(page));
-await shotWork(page, '04-drill2-reserved-word');
-
-await go(page, 6);
-await answer(page, 'SELECT cargo_id, COUNT(*) AS n FROM invoices GROUP BY cargo_id');
-console.log('drill 6, no HAVING   :', await verdictText(page));
-await answer(page, 'SELECT cargo_id, COUNT(*) AS n FROM invoices WHERE COUNT(*) > 1 GROUP BY cargo_id');
-console.log('drill 6, WHERE COUNT :', await verdictText(page));
-await shotWork(page, '05-drill6-where-count');
-
-await go(page, 9);
-await answer(page, 'SELECT SUM(c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price) AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
-console.log('drill 9, row by row  :', await verdictText(page));
-await page.click('.work .btn.reveal');
-const firstClick = await page.$eval('.answer', (el) => el.innerText.trim());
-await page.click('.work .btn.reveal');
-const revealed = await page.$eval('.answer', (el) => el.innerText.replace(/\s+/g, ' ').trim());
-console.log('show answer, click 1 :', firstClick);
-console.log('show answer, click 2 :', revealed.slice(0, 120) + '...');
-await shotWork(page, '06-drill9-hint-and-answer');
-
-await go(page, 3);
-await answer(page, 'SELECT c.cargo_id, c.counterparty, p.country, p.payment_terms_days FROM cargoes c JOIN counterparties p ON c.counterparty = p.counterparty');
-console.log('drill 3, inner join  :', await verdictText(page));
-await page.screenshot({ path: `${OUT}/07-drill3-correct-with-panel.png`, fullPage: false, clip: { x: 0, y: 480, width: 1360, height: 900 } });
-
-await go(page, 10);
-await page.click('.work .btn.primary');
-await page.waitForSelector('.timed-bar');
-await new Promise((r) => setTimeout(r, 1300));
-await answer(page, 'SELECT c.cargo_id, c.vessel, c.counterparty FROM cargoes c LEFT JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoice_no IS NULL');
-console.log('timed run, step 1    :', await verdictText(page));
-await shotWork(page, '08-timed-run');
-
-// Reload: progress survives, last answer restored
-await go(page, 4);
-const restored = await page.$eval('.editor', (el) => el.value.split('\n')[0]);
-const ticks = await page.$$eval('.drill .status.done', (els) => els.length);
-const found = await page.$$eval('.chip.found', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
-console.log('after reload         :', `${ticks} drill(s) ticked, editor restored to "${restored}", chips found: ${found.join(' | ')}`);
-
-// Phone width, dark
-const phone = await open({ width: 400, height: 860, dark: true, mobile: true });
-await go(phone, 4);
-await answer(phone, 'SELECT c.cargo_id FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
-await phone.screenshot({ path: `${OUT}/09-phone-dark-full.png`, fullPage: true });
-const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-console.log('phone 400px overflow :', `${overflow}px`);
-if (overflow > 0) problems.push(`horizontal scroll of ${overflow}px at 400px`);
-
-// Desktop dark
-const dark = await open({ width: 1360, height: 900, dark: true });
-await go(dark, 7);
-await answer(dark, 'SELECT c.cargo_id, c.bl_tonnage, i.invoiced_tonnage, c.bl_tonnage - i.invoiced_tonnage AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE c.bl_tonnage <> i.invoiced_tonnage');
-console.log('drill 7, sign flipped:', await verdictText(dark));
-await dark.screenshot({ path: `${OUT}/10-desktop-dark-drill7.png`, fullPage: false });
-
-// ---------- review checks, each in a clean browser profile ----------
-
-const { drills } = await import('../public/js/drills/reconciliation.mjs');
-const model = (id) => drills.find((d) => d.id === id).sql;
-async function fresh() {
+// ---------- hollow tick: reveal, solve, then a clean solve upgrades it ----------
+{
   const ctx = await browser.createBrowserContext();
-  const p = await ctx.newPage();
-  await p.setViewport({ width: 1360, height: 900 });
-  p.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-  return { ctx, p };
-}
-const saved = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('findthebreaks:progress') || 'null'));
-const ticked = (p) => p.$$eval('.drill .status.done', (els) => els.length);
-const clickNext = (p) => p.click('.verdict .btn.primary');
-const reveal = async (p) => { await p.click('.work .btn.reveal'); await p.click('.work .btn.reveal'); };
-
-// 3a. Show answer alone never ticks a drill or a chip
-{
-  const { ctx, p } = await fresh();
-  await go(p, 5);
-  await reveal(p);
-  const shown = await p.$eval('.answer pre', (el) => el.innerText.length > 0);
-  const s = await saved(p);
-  const chip = await p.$$eval('.chip.found', (els) => els.length);
-  console.log('reveal only, drill 5 :', `answer shown ${shown}, ticks ${await ticked(p)}, found chips ${chip}, stored completions ${Object.keys(s?.complete || {}).length}`);
-  if (!shown || (await ticked(p)) || chip || Object.keys(s?.complete || {}).length) problems.push('Show answer ticked something');
+  const page = await open({ context: ctx });
+  await go(page, 5);
+  await page.click('.work .btn.reveal');
+  await page.click('.work .btn.reveal');
+  log('after reveal only', `status "${await statusOf(page, 5)}"`);
+  expectThat('reveal alone does not tick', (await statusOf(page, 5)) === 'status');
+  await excel(page, excelModel(5));
+  log('solved after reveal', await verdict(page));
+  const hollow = await statusOf(page, 5);
+  const chipHollow = await page.$$eval('.chip.found-hollow', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+  log('drill 5 status', `"${hollow}", chip: ${chipHollow.join(' | ')}`);
+  expectThat('solve after reveal gives a hollow tick', hollow.includes('hollow'));
+  expectThat('and a hollow found chip', chipHollow.some((c) => c.includes('Orphan')));
+  await shot(page, '.layout', '07-hollow-tick');
+  // Same visit: solving again still counts as after reveal
+  await excel(page, excelModel(5));
+  log('same visit, solve again', `status "${await statusOf(page, 5)}"`);
+  expectThat('a second solve in the same visit stays hollow', (await statusOf(page, 5)).includes('hollow'));
+  // A later visit: a real reload, not a hash change
+  await page.reload({ waitUntil: 'networkidle0' });
+  await ready(page);
+  log('after reload', `status "${await statusOf(page, 5)}", editor kept: ${(await page.$$eval('.formula', (els) => els.map((e) => e.value))).join(' ')}`);
+  await excel(page, excelModel(5));
+  const upgraded = await statusOf(page, 5);
+  log('clean solve later', `status "${upgraded}"`);
+  expectThat('a clean solve upgrades to a full tick', upgraded.includes('done'));
+  await go(page, 5, 'sql');
+  log('SQL tab, same drill', `status "${await statusOf(page, 5)}" (ticks are per language)`);
   await ctx.close();
 }
 
-// 3b. A revealed answer in a timed run disqualifies the run
+// ---------- versioning: a changed SQL key clears SQL ticks only ----------
 {
-  const { ctx, p } = await fresh();
-  await go(p, 10);
-  await p.click('.work .btn.primary');
-  await p.waitForSelector('.timed-bar');
-  await p.click('.work .btn.reveal');
-  const warning = await p.$eval('.answer', (el) => el.innerText.trim());
-  await p.click('.work .btn.reveal');
-  await answer(p, model(4));
-  console.log('timed, reveal warning:', warning);
-  console.log('timed, after reveal  :', await verdictText(p));
-  for (const id of [5, 6, 7, 8]) {
-    await clickNext(p);
-    await p.waitForSelector('.timed-bar');
-    await answer(p, model(id));
+  const ctx = await browser.createBrowserContext();
+  const page = await open({ context: ctx });
+  await go(page, 4);
+  await page.evaluate((fpExcel) => localStorage.setItem('findthebreaks:progress', JSON.stringify({
+    schema: 3,
+    keys: { 'reconciliation:sql': 'old-key-0000', 'reconciliation:excel': fpExcel },
+    solved: { 'reconciliation:4:sql': true, 'reconciliation:4:excel': true },
+    afterReveal: { 'reconciliation:5:sql': true },
+    answers: { 'reconciliation:4:sql': 'SELECT 1' },
+  })), key.fingerprints.excel);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await ready(page);
+  const notice = await page.$eval('.notice', (el) => el.innerText).catch(() => '(no notice)');
+  const excelTick = await statusOf(page, 4);
+  await tab(page, 'SQL');
+  const sqlTick = await statusOf(page, 4);
+  const sqlHollow = await statusOf(page, 5);
+  const kept = await page.$eval('.editor', (el) => el.value);
+  log('old SQL key, reload', `Excel drill 4 "${excelTick}", SQL drill 4 "${sqlTick}", SQL drill 5 "${sqlHollow}", SQL answer "${kept}"`);
+  log('notice', notice);
+  expectThat('Excel tick survives a SQL key change', excelTick.includes('done'));
+  expectThat('SQL ticks, full and hollow, are cleared', sqlTick === 'status' && sqlHollow === 'status');
+  expectThat('saved SQL answer is kept', kept === 'SELECT 1');
+  await ctx.close();
+}
+
+// ---------- timed run in Excel, one step ----------
+{
+  const page = await open();
+  await go(page, 10);
+  await page.click('.work .btn.primary');
+  await page.waitForSelector('.timed-bar');
+  await excel(page, excelModel(4));
+  log('excel timed, step 1', await verdict(page));
+  await page.close();
+}
+
+// ---------- timed run: a reveal disqualifies it, a slow clean run counts ----------
+for (const mode of ['reveal', 'slow']) {
+  const ctx = await browser.createBrowserContext();
+  const page = await open({ context: ctx });
+  await go(page, 10);
+  await page.click('.work .btn.primary');
+  await page.waitForSelector('.timed-bar');
+  if (mode === 'reveal') {
+    await page.click('.work .btn.reveal');
+    await page.click('.work .btn.reveal');
+  } else {
+    await page.evaluate(() => {
+      const real = performance.now.bind(performance);
+      performance.now = () => real() + 10 * 60000 + 5000;
+    });
+    await new Promise((r) => setTimeout(r, 600));
+    log('timed, past 10:00', await page.$eval('.clock', (el) => `${el.textContent} class="${el.className}"`));
   }
-  await clickNext(p);
-  await p.waitForSelector('.work .v');
-  const end = await p.$eval('.work .v', (el) => el.innerText.replace(/\s+/g, ' ').trim());
-  const done10 = (await saved(p))?.complete?.['reconciliation:10:sql'];
-  console.log('timed, finish        :', end, `| drill 10 stored complete: ${!!done10}`);
-  await (await p.$('.layout')).screenshot({ path: `${OUT}/11-timed-revealed-not-counted.png` });
-  if (done10) problems.push('timed run with a reveal was counted');
-  await ctx.close();
-}
-
-// 7. The timed run past 10:00: fast forward the clock, then finish
-{
-  const { ctx, p } = await fresh();
-  await go(p, 10);
-  await p.click('.work .btn.primary');
-  await p.waitForSelector('.timed-bar');
-  await p.evaluate(() => {
-    const real = performance.now.bind(performance);
-    performance.now = () => real() + 10 * 60000 + 5000;
-  });
-  await new Promise((r) => setTimeout(r, 600));
-  const clockState = await p.$eval('.clock', (el) => `${el.textContent} class="${el.className}" shown as "${getComputedStyle(el, '::after').content}"`);
-  console.log('timed, past 10:00    :', clockState);
-  await (await p.$('.work')).screenshot({ path: `${OUT}/12-timed-past-target.png` });
   for (const id of [4, 5, 6, 7, 8]) {
-    if (id !== 4) { await clickNext(p); await p.waitForSelector('.timed-bar'); }
-    await answer(p, model(id));
+    if (id !== 4) { await page.click('.verdict .btn.primary'); await page.waitForSelector('.timed-bar'); }
+    await excel(page, excelModel(id));
   }
-  await clickNext(p);
-  await p.waitForSelector('.work .v');
-  const end = await p.$eval('.work .v', (el) => el.innerText.replace(/\s+/g, ' ').trim());
-  const done10 = (await saved(p))?.complete?.['reconciliation:10:sql'];
-  console.log('timed, finish late   :', end, `| drill 10 stored complete: ${!!done10}`);
-  if (!done10) problems.push('a clean but slow timed run was not counted');
+  await page.click('.verdict .btn.primary');
+  await page.waitForSelector('.work .v');
+  const end = await page.$eval('.work .v', (el) => el.innerText.replace(/\s+/g, ' ').trim());
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('findthebreaks:progress') || '{}').solved?.['reconciliation:10:excel'] === true);
+  log(`timed, ${mode}`, `${end} | drill 10 stored solved: ${stored}`);
+  expectThat(`timed run (${mode}) counted correctly`, mode === 'reveal' ? !stored : stored);
   await ctx.close();
 }
 
-// 4. Saved progress from an older answer key loses its ticks, keeps answers
-{
-  const { ctx, p } = await fresh();
-  // Same URL with a hash does not reload, so reload explicitly
-  const reload = async () => {
-    await p.reload({ waitUntil: 'networkidle0' });
-    await p.waitForFunction(() => document.querySelector('.work .btn.primary') && !document.querySelector('.work .btn.primary').disabled);
-  };
-  await go(p, 4);
-  await p.evaluate(() => localStorage.setItem('findthebreaks:progress', JSON.stringify({
-    schema: 2,
-    keys: { reconciliation: 'old-key-0000' },
-    complete: { 'reconciliation:4:sql': true, 'reconciliation:5:sql': true },
-    answers: { 'reconciliation:4:sql': 'SELECT 1 -- saved under the old key' },
-  })));
-  await reload();
-  const notice = await p.$eval('.notice', (el) => el.innerText).catch(() => '(no notice)');
-  const editor = await p.$eval('.editor', (el) => el.value);
-  const s = await saved(p);
-  console.log('old key, reload      :', `ticks ${await ticked(p)}, stored completions ${Object.keys(s.complete).length}, key now ${s.keys.reconciliation}, editor "${editor}"`);
-  console.log('old key, notice      :', notice);
-  await reload();
-  const second = await p.$('.notice');
-  console.log('old key, next reload :', second ? 'notice shown again (wrong)' : 'no notice');
-  if ((await ticked(p)) || Object.keys(s.complete).length || second) problems.push('stale ticks survived a key change');
-  await p.evaluate(() => localStorage.setItem('findthebreaks:progress', JSON.stringify({ schema: 1, complete: { 'reconciliation:4:sql': true }, answers: {} })));
-  await reload();
-  console.log('old schema, reload   :', `ticks ${await ticked(p)}`);
-  await ctx.close();
+// ---------- phone width, dark ----------
+for (const [drill, name] of [[7, '08-phone-dark-excel-drill7'], [4, '09-phone-dark-sql-drill4']]) {
+  const page = await open({ width: 400, height: 860, dark: true, mobile: true });
+  await go(page, drill, drill === 4 ? 'sql' : 'excel');
+  if (drill === 7) await excel(page, ['=VLOOKUP(B2, cargoes!$A:$F, 6, FALSE)', '=G2-D2', '=H2<>0']);
+  else await sql(page, sqlModel(4));
+  log(`phone, drill ${drill}`, await verdict(page));
+  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  log(`phone 400px overflow`, `${overflow}px`);
+  expectThat(`no horizontal scroll at 400px on drill ${drill}`, overflow <= 0);
+  await page.close();
 }
 
 await browser.close();
@@ -232,4 +267,4 @@ if (problems.length) {
   console.log('\nPROBLEMS\n' + problems.join('\n'));
   process.exit(1);
 }
-console.log('\nNo console errors, no page errors.');
+console.log('\nNo console errors, no page errors, every check held.');

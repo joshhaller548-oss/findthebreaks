@@ -4,9 +4,10 @@ import { countsFrom } from './check.mjs';
 import { store } from './store.mjs';
 import { mountTaskPage } from './task-page.mjs';
 import { sqlLanguage } from './languages/sql.mjs';
+import { excelLanguage } from './languages/excel.mjs';
 
-// One entry per language tab. Excel and Python are added here.
-const languages = [sqlLanguage];
+// One entry per language tab, in tab order. Python is added here.
+const languages = [excelLanguage, sqlLanguage];
 
 const TASK = 'reconciliation';
 const FICTION_NOTE = 'Counterparties, vessels and invoices are invented. Any match with a real company or ship is coincidence. Ports and grades are real.';
@@ -34,23 +35,25 @@ async function main() {
     getJSON('/data/reconciliation.key.json'),
   ]);
   const counts = countsFrom(data, key);
-  const cleared = store.syncKey(TASK, key.fingerprint);
+  const cleared = languages.reduce((n, l) => n + store.syncKey(TASK, l.id, key.fingerprints[l.id]), 0);
 
   const chips = h('ul', { class: 'chips', 'aria-label': 'Planted breaks' });
   const drawChips = () => {
     chips.replaceChildren(...Object.entries(key.planted).map(([type, list]) => {
       const drill = drills.find((d) => d.finds === type);
-      const found = drill && store.completeInAny(TASK, drill.id);
-      return h('li', { class: `chip${found ? ' found' : ''}` },
+      const status = drill && store.statusInAny(TASK, drill.id);
+      const state = status === 'clean' ? `✓ found in drill ${drill.id}` : status === 'after-reveal' ? `found after reveal, drill ${drill.id}` : `drill ${drill.id}`;
+      return h('li', { class: `chip${status === 'clean' ? ' found' : status === 'after-reveal' ? ' found-hollow' : ''}` },
         h('span', { class: 'chip-count' }, String(list.length)),
         h('span', {}, BREAK_LABELS[type] || type),
-        h('span', { class: 'chip-state' }, found ? `✓ found in drill ${drill.id}` : `drill ${drill.id}`),
+        h('span', { class: 'chip-state' }, state),
       );
     }));
   };
   drawChips();
 
-  document.getElementById('intro').replaceChildren(
+  // replaceChildren prints null as text, so drop empty slots
+  document.getElementById('intro').replaceChildren(...[
     h('p', { class: 'eyebrow' }, 'Task 1'),
     h('h1', {}, 'Invoice reconciliation'),
     h('p', { class: 'lede' }, 'You are the junior operator on a coal desk. The trading book holds the cargoes you have shipped. Finance has sent you the invoice book. They do not agree. Find every discrepancy before month end.'),
@@ -58,7 +61,7 @@ async function main() {
     chips,
     h('p', { class: 'muted small' }, 'Answers are checked on the result, not the wording of your code. Any query that returns the right rows passes, whatever you call the columns.'),
     cleared ? h('p', { class: 'notice', role: 'status' }, 'The answer key has changed since your last visit, so your earlier ticks were cleared. Your saved answers are still in the editors.') : null,
-  );
+  ].filter(Boolean));
 
   // The teaching panel after drill 3. The figure in it comes from the key.
   const [topCp, topTonnage] = key.expected[2].rows[0];

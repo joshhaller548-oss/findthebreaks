@@ -125,9 +125,10 @@ const GENERIC = {
 
 // Turn a compare() result into the message shown to the user. Drill
 // pitfalls are checked first, against counts computed by the generator.
-export function diagnose(result, { drill, user, pitfalls = [], lang }) {
+export function diagnose(result, { drill, user, pitfalls = [], lang, generic = {}, counts = {} }) {
   if (result.verdict === 'correct') return null;
   const vars = {
+    ...counts,
     got: result.gotRows,
     ...result,
     missing: (result.missing || []).join(', '),
@@ -143,17 +144,28 @@ export function diagnose(result, { drill, user, pitfalls = [], lang }) {
     if (p.match === 'value' && user.rows.length === 1 && user.rows[0].length === 1 && valEq(normValue(user.rows[0][0]), normValue(p.value))) {
       return { code: `pitfall:${p.id}`, message: fill(p.message, vars) };
     }
+    if (p.match === 'result' && p.result && compare(user, { ...p.result, ordered: false }).verdict === 'correct') {
+      return { code: `pitfall:${p.id}`, message: fill(p.message, vars) };
+    }
   }
-  return { code: result.code, message: fill(GENERIC[result.code], vars) };
+  return { code: result.code, message: fill(generic[result.code] ?? GENERIC[result.code], vars) };
 }
 
 // Fill {tokens} in hint, why and message text from the computed key.
+// Spreadsheet rows: header in row 1, so the last data row is count + 1.
 export function countsFrom(data, key) {
+  const t = data.tables;
   return {
-    n_cargoes: data.tables.cargoes.length,
-    n_invoices: data.tables.invoices.length,
-    n_counterparties: data.tables.counterparties.length,
+    n_cargoes: t.cargoes.length,
+    n_invoices: t.invoices.length,
+    n_counterparties: t.counterparties.length,
     n_breaks: Object.values(key.planted).reduce((s, list) => s + list.length, 0),
     n_break_types: Object.keys(key.planted).length,
+    cg_n: t.cargoes.length,
+    cg_last: t.cargoes.length + 1,
+    inv_last: t.invoices.length + 1,
+    cp_last: t.counterparties.length + 1,
+    orphan_invoice: key.planted.orphan_invoice?.[0]?.invoice_no ?? '',
+    orphan_cargo: key.planted.orphan_invoice?.[0]?.cargo_id ?? '',
   };
 }

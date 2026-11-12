@@ -11,9 +11,12 @@ import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { drills, pitfalls } from '../public/js/drills/reconciliation.mjs';
+import { createExcelEngine } from '../public/js/engines/excel.mjs';
+import { countsFrom, fill } from '../public/js/check.mjs';
 
 const require = createRequire(import.meta.url);
 const alasql = require('alasql');
+const { HyperFormula } = require('hyperformula');
 
 const SEED = 20260611;
 
@@ -277,10 +280,22 @@ for (const d of drills) {
   if (!d.sql) continue;
   expected[d.id] = { ordered: d.ordered, ...run(d.sql) };
 }
+// Excel pitfalls run through the same engine the page uses
+const counts = countsFrom({ tables }, { planted });
+const excel = createExcelEngine(HyperFormula, tables);
+const runExcel = (drillId, formulas) => {
+  const frame = drills.find((d) => d.id === drillId).excel;
+  const filled = Object.fromEntries(Object.entries(formulas).map(([k, f]) => [k, fill(f, counts)]));
+  const out = excel.run(filled, frame);
+  if (!out.ok) throw new Error(`Excel pitfall on drill ${drillId} did not run: ${out.error.message}`);
+  return out;
+};
+
 const pitfallResults = pitfalls.map((p) => {
-  const r = run(p.sql);
+  const r = p.lang === 'excel' ? runExcel(p.drill, p.formulas) : run(p.sql);
   const out = { drill: p.drill, id: p.id, lang: p.lang, match: p.match, row_count: r.rows.length, column_count: r.columns.length };
   if (p.match === 'value') out.value = r.rows[0][0];
+  if (p.match === 'result') out.result = { columns: r.columns, rows: r.rows };
   return out;
 });
 
@@ -293,14 +308,18 @@ const data = {
 };
 // Saved ticks are tied to this. If any expected result or planted break
 // changes, the fingerprint changes and the page clears old ticks.
-const fingerprintOf = (planted, expected) =>
-  createHash('sha256').update(JSON.stringify({ planted, expected })).digest('hex').slice(0, 16);
+// One per language, so a change to the Excel frames clears only Excel ticks.
+const hash = (x) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+const fingerprints = {
+  sql: hash({ planted, expected, sql: drills.map((d) => [d.id, d.ordered ?? null]) }),
+  excel: hash({ planted, expected, excel: drills.map((d) => [d.id, d.excel ? { ...d.excel, model: undefined } : null]) }),
+};
 
 const key = {
   generated_by: 'scripts/generate-reconciliation.mjs',
   seed: SEED,
-  fingerprint: fingerprintOf(planted, expected),
-  engine: `alasql ${alasql.version}`,
+  engines: { sql: `alasql ${alasql.version}`, excel: `hyperformula ${HyperFormula.version}` },
+  fingerprints,
   planted,
   expected,
   pitfalls: pitfallResults,
@@ -309,4 +328,4 @@ const key = {
 writeFileSync(new URL('../public/data/reconciliation.json', import.meta.url), JSON.stringify(data, null, 2) + '\n');
 writeFileSync(new URL('../public/data/reconciliation.key.json', import.meta.url), JSON.stringify(key, null, 2) + '\n');
 console.log(`Wrote ${cargoes.length} cargoes, ${invoices.length} invoices, ${counterparties.length} counterparties.`);
-console.log(`Answer key: ${Object.keys(expected).length} drills, ${pitfallResults.length} pitfalls, engine alasql ${alasql.version}.`);
+console.log(`Answer key: ${Object.keys(expected).length} drills, ${pitfallResults.length} pitfalls, engines ${key.engines.sql} and ${key.engines.excel}.`);

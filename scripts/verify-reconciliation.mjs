@@ -12,6 +12,9 @@ import { drills, pitfalls, DRILL_1_PORT } from '../public/js/drills/reconciliati
 
 const require = createRequire(import.meta.url);
 const alasql = require('alasql');
+const { HyperFormula } = require('hyperformula');
+const { createExcelEngine } = await import('../public/js/engines/excel.mjs');
+const { countsFrom, fill } = await import('../public/js/check.mjs');
 
 const root = new URL('../', import.meta.url);
 const data = JSON.parse(readFileSync(new URL('public/data/reconciliation.json', root), 'utf8'));
@@ -192,9 +195,13 @@ for (const d of drills) {
   const fresh = run(d.sql);
   check(`drill ${d.id} SQL reproduces committed key`, eq(fresh.columns, key.expected[d.id].columns) && eq(fresh.rows, key.expected[d.id].rows));
 }
-check(`key built with the pinned engine (${key.engine})`, key.engine === `alasql ${alasql.version}`);
-const fp = createHash('sha256').update(JSON.stringify({ planted: key.planted, expected: key.expected })).digest('hex').slice(0, 16);
-check(`key fingerprint matches its contents (${key.fingerprint}), so saved ticks clear when the key changes`, key.fingerprint === fp);
+check(`key built with the pinned engines (${key.engines.sql}, ${key.engines.excel})`, key.engines.sql === `alasql ${alasql.version}` && key.engines.excel === `hyperformula ${HyperFormula.version}`);
+const hash = (x) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+const fpSql = hash({ planted: key.planted, expected: key.expected, sql: drills.map((d) => [d.id, d.ordered ?? null]) });
+const fpExcel = hash({ planted: key.planted, expected: key.expected, excel: drills.map((d) => [d.id, d.excel ? { ...d.excel, model: undefined } : null]) });
+check(`SQL fingerprint matches the key and SQL drill definitions (${key.fingerprints.sql})`, key.fingerprints.sql === fpSql);
+check(`Excel fingerprint matches the key and Excel frames (${key.fingerprints.excel})`, key.fingerprints.excel === fpExcel);
+check('the two fingerprints differ, so each language clears its own ticks', fpSql !== fpExcel);
 const reserved = drills.filter((d) => d.sql && /\bAS\s+total\b/i.test(d.sql));
 check('no model answer aliases a column AS total (AlaSQL reserved word)', reserved.length === 0);
 
@@ -202,7 +209,7 @@ check('no model answer aliases a column AS total (AlaSQL reserved word)', reserv
 
 section('6. Wrong answers the diagnostic hints will recognise');
 
-const pit = (drill, id) => key.pitfalls.find((x) => x.drill === drill && x.id === id);
+const pit = (drill, id, lang) => key.pitfalls.find((x) => x.drill === drill && x.id === id && (!lang || x.lang === lang));
 const innerJoinRows = matchedPairs.length;
 check(`drill 4 INNER JOIN returns ${innerJoinRows} rows (27 invoiced cargoes + 1 duplicate row)`, pit(4, 'inner_join').row_count === innerJoinRows);
 check('drill 1 without WHERE returns 30 rows', pit(1, 'no_where').row_count === 30);
@@ -212,15 +219,44 @@ check(`drill 6 without HAVING returns every invoiced cargo ID (${invByCargo.size
 check(`drill 4 INNER JOIN with DISTINCT returns ${invByCargo.size - 1} rows (every invoiced cargo)`, pit(4, 'inner_join_distinct').row_count === [...invByCargo.keys()].filter((id) => cargoById.has(id)).length);
 check(`drill 5 INNER JOIN returns ${innerJoinRows} rows`, pit(5, 'inner_join').row_count === innerJoinRows);
 check(`drills 7 and 8 without WHERE return every matched invoice (${innerJoinRows})`, pit(7, 'no_where').row_count === innerJoinRows && pit(8, 'no_where').row_count === innerJoinRows);
-check('every pitfall in the drill file has a computed result in the key', pitfalls.every((q) => pit(q.drill, q.id)));
-const pitfallRows = pitfalls.filter((q) => q.match === 'rows').map((q) => [q.drill, pit(q.drill, q.id).row_count, key.expected[q.drill].rows.length]);
+check('every pitfall in the drill file has a computed result in the key', pitfalls.every((q) => pit(q.drill, q.id, q.lang)));
+const pitfallRows = pitfalls.filter((q) => q.match === 'rows').map((q) => [q.drill, pit(q.drill, q.id, q.lang).row_count, key.expected[q.drill].rows.length]);
 check('no row-count pitfall has the same count as the right answer', pitfallRows.every(([, n, exp]) => n !== exp));
 const rowByRow = round2(matchedPairs.reduce((s, [c, i]) => s + c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price, 0));
 check('drill 9 row by row join gives a different number (duplicate cancels out)', pit(9, 'row_by_row_join').value === rowByRow && rowByRow !== drill9, `${rowByRow} vs ${drill9}`);
 
-// ---------- 7. house rules ----------
+// ---------- 7. Excel ----------
 
-section('7. House rules');
+section('7. Excel model answers and pitfalls, run in HyperFormula');
+
+const counts = countsFrom(data, key);
+const excel = createExcelEngine(HyperFormula, data.tables);
+const runExcel = (d, formulas) => excel.run(Object.fromEntries(Object.entries(formulas).map(([k, f]) => [k, fill(f, counts)])), d.excel);
+for (const d of drills.filter((x) => x.excel)) {
+  const out = runExcel(d, d.excel.model);
+  const ordered = d.excel.ordered ?? d.ordered;
+  const k = key.expected[d.id];
+  const ok = out.ok && eq(canon(out.rows, ordered), canon(k.rows, ordered)) && out.columns.length === k.columns.length;
+  check(`drill ${d.id} Excel model answer reproduces the key: ${k.rows.length} row(s)${ordered ? ', order checked' : ''}`, ok, out.ok ? '' : out.error.message);
+}
+check('every drill with SQL has an Excel frame, hint and explanation', drills.filter((d) => d.sql).every((d) => d.excel && d.hint?.excel && d.why?.excel));
+const excelPits = pitfalls.filter((q) => q.lang === 'excel');
+for (const q of excelPits) {
+  const kp = pit(q.drill, q.id, 'excel');
+  const exp = key.expected[q.drill];
+  const differs = kp.match === 'value'
+    ? Math.abs(kp.value - exp.rows[0][0]) > 0.01
+    : kp.match === 'result'
+      ? !eq(canon(kp.result.rows, false), canon(exp.rows, false))
+      : kp.row_count !== exp.rows.length;
+  check(`drill ${q.drill} Excel pitfall ${q.id} is computed and differs from the right answer`, !!kp && differs);
+}
+check('drill 4 bare MATCH lands on the same count as COUNTIF without =0, so it gets that hint', pit(4, 'bare_match').row_count === pit(4, 'count_not_zero').row_count);
+check('drill 9 Excel first-match figure equals the SQL row-by-row figure', pit(9, 'first_match_only').value === pit(9, 'row_by_row_join').value);
+
+// ---------- 8. house rules ----------
+
+section('8. House rules');
 
 const dashFree = (txt) => !new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']').test(txt);
 const walkFiles = (dir) => readdirSync(new URL(dir, root)).flatMap((f) => {
@@ -267,7 +303,7 @@ check(`no-hard-coded-count rule behaves on ${ruleCases.length} sample sentences`
 
 const texts = [
   ...drills.flatMap((d) => [...Object.values(d.hint || {}), ...Object.values(d.why || {})].map((t) => [`drill ${d.id} hint/why`, t])),
-  ...pitfalls.filter((q) => q.message).map((q) => [`pitfall ${q.drill}/${q.id}`, q.message]),
+  ...pitfalls.filter((q) => q.message).map((q) => [`pitfall ${q.lang} ${q.drill}/${q.id}`, q.message]),
 ];
 const counted = texts.filter(([, t]) => hardCodedCount(t));
 check(`no hard-coded counts in ${texts.length} hint, explanation and pitfall templates`, counted.length === 0, counted.map(([l]) => l).join(', '));

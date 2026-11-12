@@ -21,6 +21,9 @@ export function mountTaskPage(cfg) {
     reveal: 0,
     hint: false,
     timed: null,
+    // Drills whose answer was revealed in this visit, per language. A
+    // correct run after a reveal earns a hollow tick, not a full one.
+    revealed: new Set(),
   };
 
   function drillFromHash() {
@@ -44,7 +47,7 @@ export function mountTaskPage(cfg) {
     const items = [];
     for (const d of drills) {
       const open = d.id === state.drillId;
-      const done = store.isComplete(task, d.id, state.lang);
+      const status = store.status(task, d.id, state.lang);
       items.push(h('li', { class: `drill${open ? ' open' : ''}${d.key ? ' key' : ''}` },
         h('button', {
           class: 'drill-head',
@@ -55,14 +58,26 @@ export function mountTaskPage(cfg) {
           h('span', { class: 'num' }, String(d.id).padStart(2, '0')),
           h('span', { class: 'title' }, d.title),
           h('span', { class: 'tag' }, d.tag),
-          h('span', { class: `status${done ? ' done' : ''}`, 'aria-label': done ? 'complete' : 'not complete' }, done ? '✓' : ''),
+          statusMark(status),
         ),
         d.key ? h('p', { class: 'key-flag' }, 'The most important drill on the site') : null,
         h('div', { class: 'drill-body', id: `drill-body-${d.id}`, hidden: !open }, h('p', {}, text(d.question))),
       ));
       if (panels[d.id]) items.push(h('li', { class: 'panel-item' }, panels[d.id]()));
     }
-    els.list.replaceChildren(h('ol', { class: 'drill-list' }, items));
+    els.list.replaceChildren(
+      h('ol', { class: 'drill-list' }, items),
+      h('p', { class: 'legend' },
+        h('span', {}, statusMark('clean'), ' solved'),
+        h('span', {}, statusMark('after-reveal'), ' solved after reveal'),
+      ),
+    );
+  }
+
+  function statusMark(status) {
+    if (status === 'clean') return h('span', { class: 'status done', title: 'Solved', 'aria-label': 'solved' }, '✓');
+    if (status === 'after-reveal') return h('span', { class: 'status hollow', title: 'Solved after revealing the answer', 'aria-label': 'solved after reveal' }, '✓');
+    return h('span', { class: 'status', 'aria-label': 'not solved' }, '');
   }
 
   function selectDrill(id, { scroll = false } = {}) {
@@ -119,29 +134,18 @@ export function mountTaskPage(cfg) {
 
     const editorKey = d.timed ? `timed:${target.id}:${lang.id}` : draftKey(d.id);
     const initial = state.drafts.get(editorKey) ?? (d.timed ? '' : store.lastAnswer(task, d.id, lang.id));
-    const editor = h('textarea', {
-      class: 'editor',
-      spellcheck: 'false',
-      autocapitalize: 'off',
-      autocomplete: 'off',
-      'aria-label': `${lang.label} answer for drill ${target.id}`,
-      placeholder: lang.placeholder,
-      rows: '8',
-      oninput: (e) => state.drafts.set(editorKey, e.target.value),
-      onkeydown: (e) => {
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          runBtn.click();
-        }
-      },
+    const editor = lang.editor({
+      drill: target,
+      tables: data.tables,
+      value: initial,
+      onChange: (v) => state.drafts.set(editorKey, v),
+      onRun: () => runBtn.click(),
     });
-    editor.value = initial;
 
     const verdict = h('div', { class: 'verdict', 'aria-live': 'polite' });
-    const result = h('div', { class: 'result' });
     const answer = h('div', { class: 'answer' });
 
-    const runBtn = h('button', { class: 'btn primary', onclick: () => run(target, editor.value, verdict, result, d) }, 'Run and check');
+    const runBtn = h('button', { class: 'btn primary', onclick: () => run(target, editor, verdict, d) }, 'Run and check');
     const hintBtn = h('button', {
       class: 'btn',
       'aria-expanded': state.hint ? 'true' : 'false',
@@ -156,14 +160,15 @@ export function mountTaskPage(cfg) {
 
     parts.push(
       hint,
+      lang.instructions ? lang.instructions(target, data.tables) : null,
       h('p', { class: 'engine-note' }, lang.note),
-      editor,
+      editor.input,
       h('div', { class: 'actions' }, runBtn, hintBtn, answerBtn),
       answer,
       verdict,
-      result,
+      editor.result,
     );
-    els.work.replaceChildren(...parts);
+    els.work.replaceChildren(...parts.filter(Boolean));
 
     // Load the engine now, so the first run is not the slow one
     runBtn.disabled = true;
@@ -179,7 +184,10 @@ export function mountTaskPage(cfg) {
   // chip; only a correct run does. In a timed run it disqualifies the run.
   function revealStep(btn, box, drill, lang) {
     state.reveal = Math.min(2, state.reveal + 1);
-    if (state.reveal === 2 && state.timed && !state.timed.done) state.timed.revealed.add(drill.id);
+    if (state.reveal === 2) {
+      if (state.timed && !state.timed.done) state.timed.revealed.add(drill.id);
+      else state.revealed.add(`${drill.id}:${lang.id}`);
+    }
     renderReveal(btn, box, drill, lang);
   }
   function renderReveal(btn, box, drill, lang) {
@@ -196,40 +204,42 @@ export function mountTaskPage(cfg) {
       btn.hidden = true;
       box.replaceChildren(
         h('p', { class: 'answer-label' }, `Model answer, ${lang.label}`),
-        h('pre', { class: 'code' }, lang.modelAnswer(drill)),
+        h('pre', { class: 'code' }, lang.modelAnswer(drill, counts, data.tables)),
         h('p', { class: 'why' }, text(drill.why?.[lang.id])),
       );
     }
   }
 
-  async function run(drill, source, verdictEl, resultEl, parent) {
+  async function run(drill, editor, verdictEl, parent) {
     const lang = languages.find((l) => l.id === state.lang);
     const engine = await engineFor(lang.id);
-    if (!parent.timed) store.saveAnswer(task, parent.id, lang.id, source);
+    const source = editor.value();
+    if (!parent.timed) store.saveAnswer(task, parent.id, lang.id, lang.serialise ? lang.serialise(source) : source);
 
-    const out = await engine.run(source);
+    const out = await lang.run(engine, source, drill);
+    editor.show(out);
     if (!out.ok) {
       showError(verdictEl, out.error.message);
-      resultEl.replaceChildren();
       return;
     }
-    const expected = { ...key.expected[drill.id], ordered: drill.ordered };
+    const expected = { ...key.expected[drill.id], ordered: lang.ordered ? lang.ordered(drill) : drill.ordered };
     const res = compare(out, expected);
-    resultEl.replaceChildren(dataTable(out.columns, out.rows, { caption: `Your result: ${plural(out.rows.length, 'row')}` }));
 
     if (res.verdict === 'correct') {
+      let status = null;
       if (!parent.timed) {
-        store.markComplete(task, drill.id, lang.id);
+        status = store.markSolved(task, drill.id, lang.id, { afterReveal: state.revealed.has(`${drill.id}:${lang.id}`) });
         renderList();
         onProgress();
       }
-      showCorrect(verdictEl, drill, parent, out.notes || []);
+      showCorrect(verdictEl, drill, parent, out.notes || [], status);
       return;
     }
-    const diag = diagnose(res, { drill, user: out, pitfalls, lang: lang.id });
+    const diag = diagnose(res, { drill, user: out, pitfalls, lang: lang.id, generic: lang.generic, counts });
     verdictEl.replaceChildren(h('div', { class: 'v v-wrong' },
       h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, '✗'), res.shapeOk ? 'Right shape, wrong rows' : 'Wrong shape'),
       h('p', {}, diag.message),
+      (out.notes || []).map((n) => h('p', { class: 'note' }, h('strong', {}, 'Note. '), n)),
     ));
   }
 
@@ -240,7 +250,7 @@ export function mountTaskPage(cfg) {
     ));
   }
 
-  function showCorrect(el, drill, parent, notes = []) {
+  function showCorrect(el, drill, parent, notes = [], status = null) {
     const body = [h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, '✓'), 'Correct')];
     if (parent.timed) {
       const t = state.timed;
@@ -250,7 +260,9 @@ export function mountTaskPage(cfg) {
       body.push(h('p', {}, `Drill ${drill.id} done at ${clock(t.splits[t.step])}.${revealed}`));
       body.push(h('button', { class: 'btn primary', onclick: () => (last ? finishTimed() : nextTimed()) }, last ? 'Finish' : 'Next drill'));
     } else {
-      body.push(h('p', {}, cfg.correctNote?.(drill) || 'Your result matches the answer key.'));
+      body.push(h('p', {}, status === 'after-reveal'
+        ? 'Your result matches the answer key. You revealed the answer first, so this drill gets a hollow tick. Solve it from scratch on a later visit to make it a full tick.'
+        : cfg.correctNote?.(drill) || 'Your result matches the answer key.'));
       for (const n of notes) body.push(h('p', { class: 'note' }, h('strong', {}, 'Note. '), n));
       const next = byId.get(drill.id + 1);
       if (next) body.push(h('button', { class: 'btn', onclick: () => selectDrill(next.id, { scroll: true }) }, `Next: drill ${next.id}`));
@@ -262,7 +274,7 @@ export function mountTaskPage(cfg) {
   // ---------- timed run ----------
 
   function timedIntro(d) {
-    const done = store.isComplete(task, d.id, state.lang);
+    const done = store.status(task, d.id, state.lang) === 'clean';
     return h('div', { class: 'timed-intro' },
       h('p', { class: 'question' }, text(d.question)),
       h('p', {}, `Drills ${d.timed.join(', ')} in a row, with empty editors. The clock runs until the last one is correct. Hints and answers stay available; using them is your call.`),
@@ -314,7 +326,7 @@ export function mountTaskPage(cfg) {
     // A run counts only if no answer was revealed. The clock never stops a
     // run: past the target it keeps going and the finish reports the overrun.
     if (!revealed.length) {
-      store.markComplete(task, d.id, state.lang);
+      store.markSolved(task, d.id, state.lang);
       renderList();
     }
     const total = t.splits[t.splits.length - 1];

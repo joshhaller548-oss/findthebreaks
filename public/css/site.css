@@ -419,3 +419,74 @@ table.data td.null { color: var(--muted); font-style: italic; }
   .work { padding: 0 14px 14px; scroll-margin-top: 8px; }
   .tabs { margin: 0 -14px 14px; }
 }
+
+/* ---------- solved states ---------- */
+
+.drill .status.hollow, .legend .status.hollow {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--ok);
+}
+.legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font: 0.75rem var(--mono);
+  color: var(--muted);
+  margin: 0.6rem 0.4rem 0;
+}
+.legend .status { font: 600 0.9rem var(--mono); color: var(--ok); }
+.chip.found-hollow { background: var(--surface); outline: 1px dashed var(--ok); outline-offset: -1px; }
+.chip.found-hollow .chip-state { color: var(--ok); }
+
+/* ---------- Excel tab ---------- */
+
+.frame { font-size: 0.93rem; margin-bottom: 0.4rem; }
+.frame p { margin-bottom: 0.3rem; }
+.frame ul { margin: 0 0 0.4rem; padding-left: 1.1rem; }
+.frame li { margin: 0.1rem 0; }
+.frame code, .why code { font: 0.85em var(--mono); background: var(--code-bg); padding: 0 0.25em; }
+
+.formulas { display: grid; gap: 0.4rem; }
+.formula-row {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(5rem, 11rem) minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid var(--rule-strong);
+  background: var(--code-bg);
+}
+.formula-row .cell-ref { font: 600 0.8rem var(--mono); padding: 0 0.5rem; color: var(--accent); border-right: 1px solid var(--rule); align-self: stretch; display: flex; align-items: center; }
+.formula-row .col-name { font: 0.78rem var(--mono); color: var(--muted); padding: 0 0.5rem; border-right: 1px solid var(--rule); align-self: stretch; display: flex; align-items: center; overflow-wrap: anywhere; }
+.formula {
+  font: 0.9rem/1.4 var(--mono);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0.55rem 0.6rem;
+  min-width: 0;
+  width: 100%;
+}
+.formula:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+.formula::placeholder { color: var(--muted); }
+
+table.sheet th { text-align: center; }
+table.sheet th.corner { width: 2.4rem; }
+table.sheet th.user, table.sheet td.user { background: var(--accent-soft); }
+table.sheet tr.names td { font-weight: 600; background: var(--surface-2); }
+table.sheet tr.names td.user { background: var(--accent-soft); }
+table.sheet th.rownum { color: var(--muted); font-weight: 500; text-align: right; background: var(--surface-2); position: static; border-right: 1px solid var(--rule); }
+table.sheet tr.kept td { background: var(--ok-soft); }
+table.sheet tr.kept td.user { background: var(--ok-soft); }
+table.sheet tr.kept th.rownum { color: var(--ok); font-weight: 600; }
+table.sheet td.err { color: var(--bad); font-weight: 600; }
+table.sheet td.err-focus { outline: 2px solid var(--bad); outline-offset: -2px; }
+table.sheet tr.total td { border-top: 1px solid var(--rule-strong); }
+table.sheet tr.total td.label { text-align: right; color: var(--muted); }
+.sheet-wrap { max-height: 26rem; }
+
+@media (max-width: 860px) {
+  .formula-row { grid-template-columns: 2.8rem minmax(0, 1fr); }
+  .formula-row .col-name { border-right: 0; }
+  .formula-row .formula { grid-column: 1 / -1; border-top: 1px solid var(--rule); }
+}
+.sheet-caption { font: 500 0.75rem var(--mono); color: var(--ink-2); margin: 0 0 0.3rem; }

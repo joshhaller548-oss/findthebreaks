@@ -21,7 +21,7 @@ function judge(id, sql) {
   if (!out.ok) return { verdict: 'error', code: out.error.code, message: out.error.message };
   const exp = { ...key.expected[id], ordered: d.ordered };
   const res = compare(out, exp);
-  const diag = diagnose(res, { drill: d, user: out, pitfalls: key.pitfalls.map((p) => ({ ...p, ...pitfalls.find((q) => q.drill === p.drill && q.id === p.id) })), lang: 'sql' });
+  const diag = diagnose(res, { drill: d, user: out, pitfalls: key.pitfalls.map((p) => ({ ...p, ...pitfalls.find((q) => q.drill === p.drill && q.id === p.id && q.lang === p.lang) })), lang: 'sql' });
   return { verdict: res.verdict, shapeOk: res.shapeOk, code: diag?.code, message: diag?.message, notes: out.notes.length };
 }
 
@@ -33,7 +33,7 @@ const expect = (label, id, sql, want) => cases.push({ label, id, sql, want });
 for (const d of drills.filter((x) => x.sql)) expect(`drill ${d.id} model answer`, d.id, d.sql, { verdict: 'correct' });
 
 // Every pitfall with a message is recognised as itself
-for (const p of pitfalls.filter((x) => x.message)) expect(`drill ${p.drill} pitfall ${p.id}`, p.drill, p.sql, { verdict: 'wrong', code: `pitfall:${p.id}` });
+for (const p of pitfalls.filter((x) => x.lang === 'sql' && x.message)) expect(`drill ${p.drill} pitfall ${p.id}`, p.drill, p.sql, { verdict: 'wrong', code: `pitfall:${p.id}` });
 
 // Equivalent answers written differently must pass
 expect('drill 1 columns reordered', 1, `SELECT bl_tonnage, cargo_id, vessel FROM cargoes WHERE load_port = 'Puerto Bolivar'`, { verdict: 'correct' });
