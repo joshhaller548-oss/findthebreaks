@@ -52,19 +52,18 @@ export function mountTaskPage(cfg) {
       const open = d.id === state.drillId;
       const status = store.status(task, d.id, langOf(d));
       items.push(h('li', { class: `drill${open ? ' open' : ''}${d.key ? ' key' : ''}` },
+        // The question shows in the working area, so the list carries titles only
         h('button', {
           class: 'drill-head',
-          'aria-expanded': open ? 'true' : 'false',
-          'aria-controls': `drill-body-${d.id}`,
+          'aria-current': open ? 'true' : null,
           onclick: () => selectDrill(d.id, { scroll: true }),
         },
           h('span', { class: 'num' }, String(d.id).padStart(2, '0')),
           h('span', { class: 'title' }, d.title),
           h('span', { class: 'tag' }, d.tag),
-          statusMark(status),
+          statusMark(status, d.id === state.popId),
         ),
         d.key ? h('p', { class: 'key-flag' }, d.keyFlag || 'The most important drill on the site') : null,
-        h('div', { class: 'drill-body', id: `drill-body-${d.id}`, hidden: !open }, h('p', {}, text(d.question))),
       ));
       if (panels[d.id]) items.push(h('li', { class: 'panel-item' }, panels[d.id]()));
     }
@@ -77,10 +76,18 @@ export function mountTaskPage(cfg) {
     );
   }
 
-  function statusMark(status) {
-    if (status === 'clean') return h('span', { class: 'status done', title: 'Solved', 'aria-label': 'solved' }, '✓');
-    if (status === 'after-reveal') return h('span', { class: 'status hollow', title: 'Solved after revealing the answer', 'aria-label': 'solved after reveal' }, '✓');
+  // pop marks a tick earned just now, so only that one animates
+  function statusMark(status, pop = false) {
+    const cls = (c) => `status ${c}${pop ? ' pop' : ''}`;
+    if (status === 'clean') return h('span', { class: cls('done'), title: 'Solved', 'aria-label': 'solved' }, '✓');
+    if (status === 'after-reveal') return h('span', { class: cls('hollow'), title: 'Solved after revealing the answer', 'aria-label': 'solved after reveal' }, '✓');
     return h('span', { class: 'status', 'aria-label': 'not solved' }, '');
+  }
+
+  function renderSolved(id) {
+    state.popId = id;
+    renderList();
+    state.popId = null;
   }
 
   function selectDrill(id, { scroll = false } = {}) {
@@ -131,7 +138,7 @@ export function mountTaskPage(cfg) {
         status: () => store.status(task, d.id, 'text'),
         saved: () => store.lastAnswer(task, d.id, 'text'),
         save: (value) => store.saveAnswer(task, d.id, 'text', value),
-        solve: () => { store.markSolved(task, d.id, 'text'); renderList(); onProgress(); },
+        solve: () => { store.markSolved(task, d.id, 'text'); renderSolved(d.id); onProgress(); },
         statusInAny: (id) => store.statusInAny(task, id),
       }));
       return;
@@ -242,7 +249,7 @@ export function mountTaskPage(cfg) {
       let status = null;
       if (!parent.timed) {
         status = store.markSolved(task, drill.id, lang.id, { afterReveal: state.revealed.has(`${drill.id}:${lang.id}`) });
-        renderList();
+        renderSolved(drill.id);
         onProgress();
       }
       showCorrect(verdictEl, drill, parent, out.notes || [], status);
@@ -340,7 +347,7 @@ export function mountTaskPage(cfg) {
     // run: past the target it keeps going and the finish reports the overrun.
     if (!revealed.length) {
       store.markSolved(task, d.id, state.lang);
-      renderList();
+      renderSolved(d.id);
     }
     const total = t.splits[t.splits.length - 1];
     const target = d.targetMinutes * 60000;

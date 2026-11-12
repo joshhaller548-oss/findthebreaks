@@ -70,7 +70,7 @@ async function main() {
     h('dl', { class: 'compare' },
       h('dt', {}, 'Excel'), h('dd', {}, h('code', {}, `=SUMIFS(tonnage_range, counterparty_range, "${topCp}")`)),
       h('dt', {}, 'SQL'), h('dd', {}, h('code', {}, 'SELECT counterparty, SUM(bl_tonnage) FROM cargoes GROUP BY counterparty')),
-      h('dt', {}, 'pandas'), h('dd', {}, h('code', {}, "cargoes.groupby('counterparty')['bl_tonnage'].sum()")),
+      h('dt', {}, 'pandas'), h('dd', {}, h('code', {}, "cargoes.groupby('counterparty')['bl_tonnage'].sum()"), h('span', { class: 'soon' }, 'Python tab coming')),
     ),
     h('p', {}, `Split the rows by counterparty and add up the tonnage in each pile. SUMIFS does one pile at a time; GROUP BY and .groupby() do every pile at once. For ${topCp} all three give ${topTonnage.toLocaleString('en-GB')} MT.`),
     h('p', { class: 'muted small' }, 'Learn the idea once and the other two tools are only syntax.'),

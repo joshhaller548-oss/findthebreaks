@@ -136,11 +136,61 @@ header.site nav { display: flex; gap: 1.25rem; font-size: 0.95rem; }
 header.site nav a { text-decoration: none; color: var(--ink-2); }
 header.site nav a[aria-current="page"] { color: var(--ink); border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
 
+/* ---------- landing: wordmark and task blocks ---------- */
+
+main.landing > .wordmark, main.landing > .task-blocks { max-width: none; }
+.wordmark {
+  font: 700 clamp(3.2rem, 11vw, 7.5rem)/0.9 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin: 0.2rem 0 1.4rem;
+}
+.wm-line { display: block; }
+/* The second line is the break: it sits out of line, gets marked, and
+   snaps back into the column. The mark stays as an underline. */
+.wm-break { display: inline-block; position: relative; }
+.wm-break::after {
+  content: '';
+  position: absolute;
+  left: 0.03em;
+  right: 0.03em;
+  bottom: -0.04em;
+  height: 0.085em;
+  background: var(--accent);
+}
+main.landing .lede { font-size: 1.2rem; color: var(--ink); max-width: 56ch; }
+main.landing .lede + p { max-width: 64ch; }
+
+.task-blocks { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 980px; }
+.task-block {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  min-height: 9.5rem;
+  align-content: start;
+  text-decoration: none;
+  background: var(--ink);
+  color: var(--bg);
+  border: 2px solid var(--ink);
+  position: relative;
+}
+.task-block.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.task-block::after { content: '\2192'; position: absolute; right: 1.1rem; bottom: 0.9rem; font: 600 1.4rem var(--mono); }
+.task-block:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.tb-eyebrow { font: 500 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
+.tb-title { font: 700 1.45rem/1.15 var(--sans); padding-right: 2rem; }
+.tb-meta { font: 0.8rem var(--mono); opacity: 0.9; font-variant-numeric: tabular-nums; }
+.tb-meta:empty { display: none; }
+.tb-bar { display: block; height: 4px; margin-top: 0.5rem; margin-right: 2.4rem; background: color-mix(in srgb, currentColor 25%, transparent); }
+.tb-bar[hidden] { display: none; }
+.tb-bar > span { display: block; height: 100%; width: var(--done, 0%); background: currentColor; }
+
 /* ---------- landing and about: left aligned, prose width ---------- */
 
 main.page { padding-top: 32px; }
 main.page > * { max-width: 68ch; }
-main.page h1 { font-size: 1.35rem; font-weight: 500; line-height: 1.4; margin-bottom: 1rem; }
+main.page h1:not(.wordmark) { font-size: 1.35rem; font-weight: 500; line-height: 1.4; margin-bottom: 1rem; }
 main.page p { color: var(--ink-2); }
 .tasks { list-style: none; padding: 0; margin: 1.5rem 0 0; border-top: 1px solid var(--rule); }
 .tasks li { border-bottom: 1px solid var(--rule); }
@@ -224,6 +274,7 @@ footer.site {
 .drill.open { background: var(--surface); }
 .drill.open .num { color: var(--accent); }
 .drill.open .title { font-weight: 600; }
+.compare .soon { display: inline-block; margin-left: 0.5rem; font: 500 0.7rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--rule-strong); padding: 0 0.3rem; }
 .drill .status { font: 600 0.9rem var(--mono); color: var(--ok); text-align: right; }
 .tag {
   font: 0.7rem/1.4 var(--mono);
@@ -426,7 +477,10 @@ table.data td.null { color: var(--muted); font-style: italic; }
   header.site, footer.site, main.task, main.page { padding-left: 16px; padding-right: 16px; }
   header.site nav { gap: 1rem; }
   main.page { padding-top: 24px; }
-  main.page h1 { font-size: 1.2rem; }
+  main.page h1:not(.wordmark) { font-size: 1.2rem; }
+  .task-blocks { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .task-block { min-height: 0; }
+  main.landing .lede { font-size: 1.08rem; }
   .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .intro { padding-top: 20px; }
   h1 { font-size: 1.55rem; }
@@ -487,11 +541,20 @@ table.data td.null { color: var(--muted); font-style: italic; }
 .formula::placeholder { color: var(--muted); }
 
 table.sheet th { text-align: center; }
-table.sheet th.corner { width: 2.4rem; }
+/* Row numbers and column A stay put while the sheet scrolls, so the formula
+   columns on the right are always read against the row's ID */
+table.sheet th.corner, table.sheet th.rownum { width: 3rem; min-width: 3rem; max-width: 3rem; box-sizing: border-box; padding-left: 0.4rem; padding-right: 0.4rem; }
+/* Collapsed borders let scrolled text show through frozen cells in Chrome */
+table.sheet { border-collapse: separate; border-spacing: 0; }
+table.sheet th.corner { position: sticky; left: 0; top: 0; z-index: 3; }
+table.sheet tr > :nth-child(2) { position: sticky; left: 3rem; z-index: 1; background: var(--surface); box-shadow: inset -1px 0 0 var(--rule-strong); }
+table.sheet thead tr > :nth-child(2) { top: 0; z-index: 3; background: var(--surface-2); }
+table.sheet tr.names > :nth-child(2) { background: var(--surface-2); }
+table.sheet tr.kept > :nth-child(2) { background: var(--ok-soft); }
 table.sheet th.user, table.sheet td.user { background: var(--accent-soft); }
 table.sheet tr.names td { font-weight: 600; background: var(--surface-2); }
 table.sheet tr.names td.user { background: var(--accent-soft); }
-table.sheet th.rownum { color: var(--muted); font-weight: 500; text-align: right; background: var(--surface-2); position: static; border-right: 1px solid var(--rule); }
+table.sheet th.rownum { color: var(--muted); font-weight: 500; text-align: right; background: var(--surface-2); position: sticky; left: 0; top: auto; z-index: 2; border-right: 1px solid var(--rule); }
 table.sheet tr.kept td { background: var(--ok-soft); }
 table.sheet tr.kept td.user { background: var(--ok-soft); }
 table.sheet tr.kept th.rownum { color: var(--ok); font-weight: 600; }
@@ -529,3 +592,35 @@ table.sheet tr.total td.label { text-align: right; color: var(--muted); }
   /* On a phone the worked example wraps rather than hiding its last figures off to the side */
   .code.calc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.72rem; }
 }
+
+/* ---------- motion ----------
+   Only for people who have not asked their device for less motion. Every
+   animation ends in the same state the page has without it. */
+
+@media (prefers-reduced-motion: no-preference) {
+  .wm-line { animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .wm-line + .wm-line { animation-delay: 0.1s; }
+  .wm-break { animation: snap 0.4s 1.15s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+  .wm-break::after { transform-origin: left; animation: mark 0.45s 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  main.landing > p { animation: rise 0.5s 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .task-blocks > li { animation: rise 0.5s 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .task-blocks > li + li { animation-delay: 0.5s; }
+  .task-block { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .task-block:hover { transform: translate(-3px, -3px); box-shadow: 3px 3px 0 var(--ink-2); }
+  .task-block::after { transition: transform 0.15s ease; }
+  .task-block:hover::after { transform: translateX(4px); }
+  .tb-bar > span { transition: width 0.9s 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+
+  .tasks a::after { display: inline-block; transition: transform 0.15s ease; }
+  .tasks a:hover::after { transform: translateX(4px); }
+
+  .verdict > .v { animation: rise 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .status.pop { display: inline-block; animation: pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+  .btn { transition: border-color 0.12s ease, filter 0.12s ease, transform 0.08s ease; }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(0.4rem); } }
+@keyframes snap { from { transform: translateX(0.14em); } }
+@keyframes mark { from { transform: scaleX(0); } }
+@keyframes pop { 0% { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.35); opacity: 1; } }

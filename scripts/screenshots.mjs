@@ -334,6 +334,25 @@ for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconcilia
   await page.close();
 }
 
+// ---------- drill list and frozen sheet column ----------
+{
+  const page = await open({ width: 400, height: 860, mobile: true });
+  await go(page, 1, 'excel');
+  await new Promise((r) => setTimeout(r, 300));
+  const listText = await page.$eval('.drill-list', (el) => el.innerText);
+  expectThat('the drill list carries titles only, not the open question', !listText.includes(byId(1).question.slice(0, 40)));
+  const frozen = await page.evaluate(() => {
+    const wrap = document.querySelector('.sheet-wrap');
+    const cell = document.querySelector('table.sheet tbody tr:not(.names) > :nth-child(2)');
+    const w = wrap.getBoundingClientRect();
+    const c = cell.getBoundingClientRect();
+    return { scrolled: wrap.scrollLeft, inView: c.left >= w.left && c.right <= w.right, text: cell.textContent };
+  });
+  log('sheet at 400px', `scrolled ${frozen.scrolled}px, column A shows ${frozen.text}`);
+  expectThat('the sheet opens scrolled to the formula column with column A still in view', frozen.scrolled > 0 && frozen.inView);
+  await page.close();
+}
+
 // ---------- landing, about and 404, both widths and themes ----------
 for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 200], ['/no-such-page', '404', 404]]) {
   for (const [width, dark] of [[1360, false], [400, false], [400, true]]) {
@@ -347,8 +366,16 @@ for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 2
     // A repeat visit may get 304 from a host that allows caching, as Vercel does
     expectThat(`${path} answers ${status}`, res.status() === status || (status === 200 && res.status() === 304));
     await noStrayText(page);
+    // Let the landing animations finish before the screenshot
+    if (path === '/') await new Promise((r) => setTimeout(r, 1800));
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expectThat(`no horizontal scroll at ${width}px on ${path}`, overflow <= 0);
+    if (path === '/') {
+      const metas = await page.$$eval('.task-block .tb-meta', (els) => els.map((e) => e.textContent));
+      const want = [drills.length, layDrills.length];
+      expectThat(`landing blocks show drill counts and languages (${metas.join(' | ')})`, metas.length === 2 && metas.every((m, i) => m.startsWith(`${want[i]} drills · Excel, SQL`)));
+      if (width === 1360 && !dark) log('landing blocks', metas.join(' | '));
+    }
     await page.screenshot({ path: `${OUT}/15-${name}-${width}${dark ? '-dark' : ''}.png`, fullPage: true });
     if (width === 1360 && !dark) {
       // Every link in the header, the body and the footer resolves
