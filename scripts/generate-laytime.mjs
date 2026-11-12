@@ -74,8 +74,16 @@ for (let mt = 40000; mt <= 75000; mt += 2500) {
 // berth after laytime has started counts. Shifting does not, by the usual
 // clause. A breakdown of the ship's gear does not. A public holiday is
 // excepted under SHEX and counts under SHINC.
-const COUNTS = { rain: false, swell: false, 'berth congestion': true, shifting: false, breakdown: false };
-const countsFor = (reason, shex) => (reason === 'public holiday' ? shex === 'SHINC' : COUNTS[reason]);
+const COUNTS = { rain: false, swell: false, shifting: false, breakdown: false };
+// Waiting for a berth counts only if the charterparty says so: WIBON, or a
+// clause that time lost waiting for berth counts. Every fixture with
+// congestion carries one, and check_laytime.py fails if one does not.
+const CLAUSES = ['WIBON', 'time lost waiting for berth to count'];
+const countsFor = (reason, shex, clause) => {
+  if (reason === 'public holiday') return shex === 'SHINC';
+  if (reason === 'berth congestion') return Boolean(clause);
+  return COUNTS[reason];
+};
 
 const iso = (t) => fromMin(t);
 const roundHalf = (t) => Math.round(t / HALF) * HALF;
@@ -139,6 +147,8 @@ function fixtureFor(n, terms, tl) {
     shex_basis: terms.shex,
     shex_window: terms.win,
     despatch_basis: terms.desp,
+    // Set from the timeline in build(): a clause wherever congestion happens
+    waiting_for_berth: null,
     demurrage_rate_usd_per_day: 0,
     turn_time_hrs: tl.turn,
     nor_tendered: iso(tl.nor),
@@ -178,7 +188,9 @@ function build() {
       }
       const f = fixtureFor(i + 1, t, tl);
       f.demurrage_rate_usd_per_day = fresh ? int(24, 64) * 500 : shared[t.group].rate_usd;
-      const rows = tl.stoppages.map((s) => ({ voyage_id: f.voyage_id, ...s, counts_against_laytime: countsFor(s.reason, t.shex) }));
+      // Chosen without drawing a random number, so the rest of the data is unchanged
+      if (tl.stoppages.some((s) => s.reason === 'berth congestion')) f.waiting_for_berth = CLAUSES[(t.group ? TERMS.findIndex((x) => x.group === t.group) : i) % 2];
+      const rows = tl.stoppages.map((s) => ({ voyage_id: f.voyage_id, ...s, counts_against_laytime: countsFor(s.reason, t.shex, f.waiting_for_berth) }));
       const r = calculate(f, rows);
       if (!sound(f, r)) {
         if (!fresh) return null; // the shared timeline does not suit this member: start again

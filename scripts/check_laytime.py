@@ -213,7 +213,7 @@ data = load("public/data/laytime.json")["tables"]
 key = load("public/data/laytime.key.json")
 fixtures, stoppages, owner = data["fixtures"], data["stoppages"], data["owner_statement"]
 FIELDS = ["voyage_id", "vessel", "cargo_mt", "load_rate_mt_per_day", "shex_basis", "shex_window", "despatch_basis",
-          "demurrage_rate_usd_per_day", "turn_time_hrs", "nor_tendered", "loading_commenced", "loading_completed"]
+          "waiting_for_berth", "demurrage_rate_usd_per_day", "turn_time_hrs", "nor_tendered", "loading_commenced", "loading_completed"]
 check("12 fixtures", len(fixtures) == 12, str(len(fixtures)))
 check("fixture columns as specified", all(list(f) == FIELDS for f in fixtures))
 check("stoppage columns as specified", all(list(s) == ["voyage_id", "start", "end", "reason", "counts_against_laytime"] for s in stoppages))
@@ -225,10 +225,24 @@ check("both SHEX windows are used", {f["shex_window"] for f in fixtures if f["sh
 check("turn time 6 or 12 hours", all(f["turn_time_hrs"] in (6, 12) for f in fixtures))
 check("loading starts after NOR and ends after it starts", all(at(f["nor_tendered"]) < at(f["loading_commenced"]) < at(f["loading_completed"]) for f in fixtures))
 
-RULE = {"rain": False, "swell": False, "berth congestion": True, "shifting": False, "breakdown": False}
+RULE = {"rain": False, "swell": False, "shifting": False, "breakdown": False}
+CLAUSES = {"WIBON", "time lost waiting for berth to count"}
 by_voyage = {f["voyage_id"]: f for f in fixtures}
-rule_ok = all(s["counts_against_laytime"] == (by_voyage[s["voyage_id"]]["shex_basis"] == "SHINC" if s["reason"] == "public holiday" else RULE[s["reason"]]) for s in stoppages)
-check("counts_against_laytime follows the rules (weather, shifting and ship's breakdown excepted; congestion counts; holidays excepted unless SHINC)", rule_ok)
+
+
+def rule(s):
+    f = by_voyage[s["voyage_id"]]
+    if s["reason"] == "public holiday":
+        return f["shex_basis"] == "SHINC"
+    if s["reason"] == "berth congestion":
+        return f["waiting_for_berth"] in CLAUSES
+    return RULE[s["reason"]]
+
+
+check("waiting_for_berth is a known clause or empty", all(f["waiting_for_berth"] in CLAUSES | {None} for f in fixtures))
+congestion_no_clause = sorted({s["voyage_id"] for s in stoppages if s["reason"] == "berth congestion" and s["counts_against_laytime"] and by_voyage[s["voyage_id"]]["waiting_for_berth"] not in CLAUSES})
+check("berth congestion counts only on fixtures with a waiting for berth clause", not congestion_no_clause, ", ".join(congestion_no_clause))
+check("counts_against_laytime follows the rules (weather, shifting and ship's breakdown excepted; congestion counts under a WIBON or waiting clause; holidays excepted unless SHINC)", all(s["counts_against_laytime"] == rule(s) for s in stoppages))
 reasons = {s["reason"] for s in stoppages}
 check("every stoppage reason from the brief's list appears, and nothing else", reasons == {"rain", "swell", "berth congestion", "shifting", "breakdown", "public holiday"}, ", ".join(sorted(reasons)))
 check("berth congestion only ever sits in waiting time before loading, where it counts", all(at(s["end"]) <= at(by_voyage[s["voyage_id"]]["loading_commenced"]) and s["counts_against_laytime"] for s in stoppages if s["reason"] == "berth congestion"))

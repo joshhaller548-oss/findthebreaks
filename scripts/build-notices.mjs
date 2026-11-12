@@ -64,7 +64,7 @@ const components = [
 ];
 
 const head = `Find the Breaks
-Copyright (C) 2026 the Find the Breaks authors
+Copyright (C) 2026 Josh Haller
 
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU General Public License version 3, as published
