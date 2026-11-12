@@ -186,6 +186,27 @@ main.landing .lede + p { max-width: 64ch; }
 .tb-bar[hidden] { display: none; }
 .tb-bar > span { display: block; height: 100%; width: var(--done, 0%); background: currentColor; }
 
+/* The laytime desk, featured above the task blocks */
+main.landing > .feature-block { max-width: none; }
+.feature-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  margin-top: 2rem;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  position: relative;
+}
+.fb-art { display: block; min-height: 170px; border-right: 2px solid var(--ink); overflow: hidden; }
+.fb-art .harbour { height: 100%; aspect-ratio: auto; min-height: 170px; border-bottom: 0; }
+.fb-body { display: grid; align-content: center; gap: 0.4rem; padding: 1.1rem 3rem 1.2rem 1.3rem; }
+.fb-tag { justify-self: start; font: 600 0.68rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); padding: 0.15rem 0.45rem; }
+.fb-title { font: 700 1.7rem/1.1 var(--sans); text-transform: uppercase; letter-spacing: -0.01em; }
+.fb-text { color: var(--ink-2); max-width: 40ch; }
+.feature-block::after { content: '\2192'; position: absolute; right: 1.1rem; bottom: 0.9rem; font: 600 1.4rem var(--mono); color: var(--accent); }
+.feature-block:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
 /* ---------- landing and about: left aligned, prose width ---------- */
 
 main.page { padding-top: 32px; }
@@ -479,6 +500,10 @@ table.data td.null { color: var(--muted); font-style: italic; }
   main.page { padding-top: 24px; }
   main.page h1:not(.wordmark) { font-size: 1.2rem; }
   .task-blocks { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .feature-block { grid-template-columns: minmax(0, 1fr); }
+  .fb-art { border-right: 0; border-bottom: 2px solid var(--ink); min-height: 120px; }
+  .fb-art .harbour { min-height: 120px; height: 120px; }
+  .fb-title { font-size: 1.4rem; }
   .task-block { min-height: 0; }
   main.landing .lede { font-size: 1.08rem; }
   .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
@@ -603,7 +628,11 @@ table.sheet tr.total td.label { text-align: right; color: var(--muted); }
   .wm-break { animation: snap 0.4s 1.15s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
   .wm-break::after { transform-origin: left; animation: mark 0.45s 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   main.landing > p { animation: rise 0.5s 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .task-blocks > li { animation: rise 0.5s 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .feature-block { animation: rise 0.5s 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .feature-block:hover { transform: translate(-3px, -3px); box-shadow: 3px 3px 0 var(--ink-2); }
+  .feature-block::after { transition: transform 0.15s ease; }
+  .feature-block:hover::after { transform: translateX(4px); }
+  .task-blocks > li { animation: rise 0.5s 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .task-blocks > li + li { animation-delay: 0.5s; }
   .task-block { transition: transform 0.15s ease, box-shadow 0.15s ease; }
   .task-block:hover { transform: translate(-3px, -3px); box-shadow: 3px 3px 0 var(--ink-2); }

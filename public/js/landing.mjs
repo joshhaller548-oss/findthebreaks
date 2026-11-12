@@ -6,6 +6,10 @@
 import { store } from './store.mjs';
 import { drills as reconciliation } from './drills/reconciliation.mjs';
 import { drills as laytime } from './drills/laytime.mjs';
+import { harbour } from './desk/harbour.mjs';
+
+// The harbour picture on the laytime desk block, same drawing as the game
+document.querySelector('.fb-art')?.append(harbour({ vessel: 'Training' }));
 
 const TASKS = {
   reconciliation: { drills: reconciliation, key: '/data/reconciliation.key.json' },

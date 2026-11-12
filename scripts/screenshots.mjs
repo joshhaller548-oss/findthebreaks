@@ -451,6 +451,8 @@ for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 2
       const want = [drills.length, layDrills.length];
       expectThat(`landing blocks show drill counts and languages (${metas.join(' | ')})`, metas.length === 2 && metas.every((m, i) => m.startsWith(`${want[i]} drills · Excel, SQL`)));
       if (width === 1360 && !dark) log('landing blocks', metas.join(' | '));
+      const feature = await page.$eval('.feature-block', (a) => ({ href: a.getAttribute('href'), art: Boolean(a.querySelector('.harbour svg')), text: a.innerText }));
+      expectThat(`landing ${width}: the laytime desk is featured, with its harbour, linking to /laytime`, feature.href === '/laytime' && feature.art && /Play the laytime desk/i.test(feature.text));
     }
     await page.screenshot({ path: `${OUT}/15-${name}-${width}${dark ? '-dark' : ''}.png`, fullPage: true });
     if (width === 1360 && !dark) {
