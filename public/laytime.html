@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Laytime and demurrage | Find the Breaks</title>
-  <meta name="description" content="Work out laytime, demurrage and despatch on coal voyages under SHEX and SHINC terms, then check the owner's laytime statement, in Excel or SQL.">
+  <title>Laytime desk | Find the Breaks</title>
+  <meta name="description" content="A game about laytime, breaks and the owner's statement. Take a coal fixture from NOR to completion, call every stoppage, and check the owner's number.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/site.css">
-  <link rel="modulepreload" href="/js/laytime.mjs">
+  <link rel="stylesheet" href="/css/desk.css">
+  <link rel="modulepreload" href="/js/desk/app.mjs">
 </head>
-<body>
+<body class="desk-body">
   <header class="site">
     <a class="brand" href="/">Find the Breaks</a>
     <nav aria-label="Site">
@@ -22,28 +23,33 @@
     </nav>
   </header>
 
-  <main class="task">
-    <section class="intro" id="intro" aria-label="Task">
-      <p class="eyebrow">Task 2</p>
-      <h1>Laytime and demurrage</h1>
-      <p class="lede">Loading the fixtures.</p>
-    </section>
-
-    <div class="layout">
-      <nav class="drills" id="drills" aria-label="Drills"></nav>
-      <div class="side">
-        <section class="work" id="work" aria-label="Working area"></section>
-        <section class="reference" id="reference" aria-label="Reference data"></section>
-      </div>
+  <main class="desk-page">
+    <div class="stage" id="stage">
+      <p class="stage-loading">Loading the desk.</p>
     </div>
   </main>
+
+  <dialog id="name-dialog" class="name-dialog" aria-labelledby="name-title">
+    <form method="dialog">
+      <p class="dialog-bar">Sign in to the desk</p>
+      <h2 id="name-title">Who is running the desk?</h2>
+      <label class="sr-only" for="name-input">Your name</label>
+      <input id="name-input" name="name" autocomplete="nickname" placeholder="Your name">
+      <p class="name-error" role="alert"></p>
+      <p class="dnote">Kept in this browser only, on your own ledger. Nobody else sees it.</p>
+      <div class="dialog-actions">
+        <button class="gbtn outline" value="skip" formnovalidate>Not now</button>
+        <button class="gbtn ink" value="ok">Take the desk</button>
+      </div>
+    </form>
+  </dialog>
 
   <footer class="site">
     <p>Vessels and voyages are invented. Any match with a real ship is coincidence. Progress is kept in this browser only.</p>
     <p>Free software under the GNU GPL version 3. <a href="https://github.com/joshhaller548-oss/findthebreaks" data-source-link>Source code</a> · <a href="/LICENSE.txt">Licence</a> · <a href="/THIRD_PARTY_NOTICES.txt">Third-party notices</a></p>
   </footer>
 
-  <noscript><p class="noscript">This page runs your queries in the browser, so it needs JavaScript.</p></noscript>
-  <script type="module" src="/js/laytime.mjs"></script>
+  <noscript><p class="noscript">The desk runs in your browser, so it needs JavaScript. The written drills are at <a href="/laytime/tools">Desk tools</a>.</p></noscript>
+  <script type="module" src="/js/desk/app.mjs"></script>
 </body>
 </html>

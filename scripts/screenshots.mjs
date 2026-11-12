@@ -268,7 +268,7 @@ for (const mode of ['reveal', 'slow']) {
 {
   const ctx = await browser.createBrowserContext();
   const page = await open({ context: ctx });
-  await go(page, 1, 'excel', 'laytime');
+  await go(page, 1, 'excel', 'laytime/tools');
   const worked = await page.$eval('.worked', (el) => el.innerText);
   const contrast = await page.$eval('.contrast', (el) => el.innerText);
   log('laytime worked example', worked.match(/USD [\d,.]+ payable to \w+/)?.[0]);
@@ -278,7 +278,7 @@ for (const mode of ['reveal', 'slow']) {
   expectThat('contrast panel shows demurrage USD 12,500.00 under SHEX UU', contrast.includes('USD 12,500.00 payable to owner') && contrast.includes('SHEX UU'));
   await page.screenshot({ path: `${OUT}/10-laytime-top.png` });
 
-  await go(page, 2, 'excel', 'laytime');
+  await go(page, 2, 'excel', 'laytime/tools');
   await excel(page, ['=K2']);
   log('lay excel 2, NOR', await verdict(page));
   await excel(page, ['=MIN(K2+J2, L2)']);
@@ -286,13 +286,13 @@ for (const mode of ['reveal', 'slow']) {
   await excel(page, layExcel(2));
   log('lay excel 2, model', await verdict(page));
 
-  await go(page, 5, 'sql', 'laytime');
+  await go(page, 5, 'sql', 'laytime/tools');
   await sql(page, laySql(5).replace('- COALESCE(st.mins, 0) - COALESCE(sx.mins, 0)', '- COALESCE(st.mins, 0)'));
   log('lay sql 5, no SHEX', await verdict(page));
   await sql(page, laySql(5));
   log('lay sql 5, model', await verdict(page));
 
-  await go(page, 7, 'excel', 'laytime');
+  await go(page, 7, 'excel', 'laytime/tools');
   const noRound = layExcel(7);
   noRound[5] = '=R2-Q2';
   await excel(page, noRound);
@@ -304,7 +304,7 @@ for (const mode of ['reveal', 'slow']) {
   log('laytime chip', chip.join(' | '));
   expectThat('drill 7 marks the owner errors chip found', chip.some((c) => c.includes("owner's statement")));
 
-  await go(page, 8, 'excel', 'laytime');
+  await go(page, 8, 'excel', 'laytime/tools');
   const show = await page.$('.text-drill .show-voyages');
   log('drill 8 before drill 7', show ? 'asks to solve drill 7 first' : 'voyages shown, drill 7 is solved');
   const areas = await page.$$('.text-drill textarea');
@@ -320,10 +320,10 @@ for (const mode of ['reveal', 'slow']) {
 }
 
 // ---------- phone width, dark ----------
-for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconciliation'], [4, '09-phone-dark-sql-drill4', 'reconciliation'], [5, '13-phone-dark-laytime-excel-drill5', 'laytime']]) {
+for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconciliation'], [4, '09-phone-dark-sql-drill4', 'reconciliation'], [5, '13-phone-dark-laytime-excel-drill5', 'laytime/tools']]) {
   const page = await open({ width: 400, height: 860, dark: true, mobile: true });
   await go(page, drill, drill === 4 ? 'sql' : 'excel', task);
-  if (task === 'laytime') await excel(page, layExcel(5));
+  if (task === 'laytime/tools') await excel(page, layExcel(5));
   else if (drill === 7) await excel(page, ['=VLOOKUP(B2, cargoes!$A:$F, 6, FALSE)', '=G2-D2', '=H2<>0']);
   else await sql(page, sqlModel(4));
   log(`phone, drill ${drill}`, await verdict(page));
@@ -351,6 +351,43 @@ for (const [drill, name, task] of [[7, '08-phone-dark-excel-drill7', 'reconcilia
   log('sheet at 400px', `scrolled ${frozen.scrolled}px, column A shows ${frozen.text}`);
   expectThat('the sheet opens scrolled to the formula column with column A still in view', frozen.scrolled > 0 && frozen.inView);
   await page.close();
+}
+
+// ---------- laytime desk: name, title, glossary, briefing, ledger ----------
+for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
+  const ctx = await browser.createBrowserContext();
+  const page = await open({ width, height: 844, dark, mobile: width < 500, context: ctx });
+  const tag = `${width}${dark ? '-dark' : ''}`;
+  await page.goto(`${BASE}/laytime`, { waitUntil: 'load' });
+  await page.waitForSelector('#stage .screen');
+  expectThat(`desk ${tag}: the name prompt opens on a first visit`, await page.$eval('#name-dialog', (d) => d.open));
+  await page.click('.name-dialog button[value="ok"]');
+  expectThat(`desk ${tag}: an empty name is refused with a reason`, /Type a name/.test(await page.$eval('.name-error', (e) => e.textContent)));
+  await page.type('#name-input', 'Tester');
+  await page.click('.name-dialog button[value="ok"]');
+  await page.mouse.move(2, 2);
+  await new Promise((r) => setTimeout(r, 1700));
+  expectThat(`desk ${tag}: the title greets the name`, (await page.$eval('.greet', (e) => e.textContent)).includes('Tester'));
+  await page.screenshot({ path: `${OUT}/16-desk-title-${tag}.png`, fullPage: true });
+  for (const [hash, name, sel] of [['#/glossary', 'glossary', '.g-item'], ['#/briefing/0', 'briefing', '.fx-terms'], ['#/ledger', 'ledger', '.empty']]) {
+    await page.evaluate((x) => { location.hash = x; }, hash);
+    await page.waitForSelector(sel);
+    await new Promise((r) => setTimeout(r, 350));
+    await noStrayText(page);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expectThat(`desk ${tag} ${name}: no horizontal scroll`, overflow <= 0);
+    if (width === 1360) await page.screenshot({ path: `${OUT}/16-desk-${name}-${tag}.png`, fullPage: true });
+  }
+  if (width === 1360 && !dark) {
+    const allowed = await page.evaluate(() => { location.hash = '#/briefing/0'; return new Promise((r) => setTimeout(() => r([...document.querySelectorAll('.fx-terms > div')].map((d) => d.innerText.replace(/\s+/g, ' '))), 300)); });
+    log('desk briefing', allowed.filter((t) => /allowed|NOR|Exceptions/.test(t)).join(' | '));
+    expectThat('desk briefing shows 120 hrs allowed from calc.mjs', allowed.some((t) => t.includes('120 hrs (5 days)')));
+    const back = await page.$('.screen-bar a');
+    await back.click();
+    await page.waitForSelector('.title-screen');
+    expectThat('desk: the drills are one click away under Desk tools', (await page.$$eval('.title-actions a', (as) => as.map((a) => a.getAttribute('href')))).includes('/laytime/tools'));
+  }
+  await ctx.close();
 }
 
 // ---------- landing, about and 404, both widths and themes ----------
