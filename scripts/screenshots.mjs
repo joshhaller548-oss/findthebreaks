@@ -73,7 +73,7 @@ async function tab(page, label) {
 async function sql(page, text) {
   await page.$eval('.editor', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.type('.editor', text, { delay: 0 });
-  await page.click('.work .btn.primary');
+  await runWhenReady(page);
   await page.waitForSelector('.verdict .v');
   await noStrayText(page);
 }
@@ -83,10 +83,15 @@ async function excel(page, values) {
     await inputs[i].evaluate((el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
     if (values[i]) await inputs[i].type(values[i], { delay: 0 });
   }
-  await page.click('.work .btn.primary');
+  await runWhenReady(page);
   await page.waitForSelector('.verdict .v');
   await noStrayText(page);
 }
+// Run is disabled until the engine has loaded, which takes longer over the network
+const runWhenReady = async (page) => {
+  await page.waitForFunction(() => { const b = document.querySelector('.work .btn.primary'); return b && !b.disabled; }, { timeout: 30000 });
+  await page.click('.work .btn.primary');
+};
 const verdict = (page) => page.$eval('.verdict', (el) => el.innerText.replace(/\s+/g, ' ').trim());
 const shot = (page, sel, name) => page.$(sel).then((el) => el.screenshot({ path: `${OUT}/${name}.png` }));
 const statusOf = (page, n) => page.$$eval('.drill .status', (els, i) => els[i - 1].className, n);
@@ -339,7 +344,8 @@ for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 2
       page.on('console', (m) => m.type() === 'error' && !(m.text().includes('404') && m.location().url === `${BASE}${path}`) && problems.push(`console: ${m.text()}`));
     }
     const res = await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle0' });
-    expectThat(`${path} answers ${status}`, res.status() === status);
+    // A repeat visit may get 304 from a host that allows caching, as Vercel does
+    expectThat(`${path} answers ${status}`, res.status() === status || (status === 200 && res.status() === 304));
     await noStrayText(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expectThat(`no horizontal scroll at ${width}px on ${path}`, overflow <= 0);
