@@ -143,7 +143,7 @@ const drill9 = round2(
     .reduce((sum, [id, list]) => {
       const c = cargoById.get(id);
       const invoiced = list.reduce((s, i) => s + i.invoiced_tonnage * i.invoiced_price, 0);
-      return sum + c.bl_tonnage * c.contract_price - invoiced;
+      return sum + invoiced - c.bl_tonnage * c.contract_price;
     }, 0),
 );
 
@@ -176,6 +176,9 @@ const totals = [...tonnagePerCp.values()];
 check('drill 2 has no tied totals, so "biggest first" has one right order', new Set(totals).size === totals.length);
 const portCount = independent[1].length;
 check('drill 1 port is a real subset (not 0, not 30)', portCount > 0 && portCount < 30, `${portCount} of 30`);
+check('drills 7, 8 and 9 state the direction: invoiced minus book, positive means invoiced above',
+  [7, 8, 9].every((id) => { const d = drills.find((x) => x.id === id); return /invoiced (value )?minus/.test(d.question) && /Positive means invoiced above/.test(d.question) && /^invoiced/.test(d.signNote); }));
+check('drill 9 is positive: the duplicate makes the book overbilled', key.expected[9].rows[0][0] > 0);
 check('drill 10 reuses drills 4 to 8', eq(drills.find((d) => d.id === 10).timed, [4, 5, 6, 7, 8]));
 check('drill 4 is flagged as the key drill', drills.find((d) => d.id === 4).key === true);
 
@@ -222,7 +225,7 @@ check(`drills 7 and 8 without WHERE return every matched invoice (${innerJoinRow
 check('every pitfall in the drill file has a computed result in the key', pitfalls.every((q) => pit(q.drill, q.id, q.lang)));
 const pitfallRows = pitfalls.filter((q) => q.match === 'rows').map((q) => [q.drill, pit(q.drill, q.id, q.lang).row_count, key.expected[q.drill].rows.length]);
 check('no row-count pitfall has the same count as the right answer', pitfallRows.every(([, n, exp]) => n !== exp));
-const rowByRow = round2(matchedPairs.reduce((s, [c, i]) => s + c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price, 0));
+const rowByRow = round2(matchedPairs.reduce((s, [c, i]) => s + i.invoiced_tonnage * i.invoiced_price - c.bl_tonnage * c.contract_price, 0));
 check('drill 9 row by row join gives a different number (duplicate cancels out)', pit(9, 'row_by_row_join').value === rowByRow && rowByRow !== drill9, `${rowByRow} vs ${drill9}`);
 
 // ---------- 7. Excel ----------
@@ -254,9 +257,26 @@ for (const q of excelPits) {
 check('drill 4 bare MATCH lands on the same count as COUNTIF without =0, so it gets that hint', pit(4, 'bare_match').row_count === pit(4, 'count_not_zero').row_count);
 check('drill 9 Excel first-match figure equals the SQL row-by-row figure', pit(9, 'first_match_only').value === pit(9, 'row_by_row_join').value);
 
-// ---------- 8. house rules ----------
+// ---------- 8. licence ----------
 
-section('8. House rules');
+section('8. Licence');
+
+const txt = (p) => readFileSync(new URL(p, root), 'utf8');
+const GPL3_SHA256 = '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986';
+check('LICENSE is the unmodified GPL-3.0 text from gnu.org', createHash('sha256').update(txt('LICENSE')).digest('hex') === GPL3_SHA256);
+check('the site serves the same licence text', txt('public/LICENSE.txt') === txt('LICENSE'));
+check('the site serves the same third-party notices', txt('public/THIRD_PARTY_NOTICES.txt') === txt('THIRD_PARTY_NOTICES.txt'));
+check('package.json declares GPL-3.0-only', JSON.parse(txt('package.json')).license === 'GPL-3.0-only');
+const notices = txt('THIRD_PARTY_NOTICES.txt');
+const vendored = readdirSync(new URL('public/vendor/', root));
+check(`notices name every vendored file (${vendored.join(', ')})`, vendored.every((f) => notices.includes(`vendor/${f}`)));
+check(`notices carry the installed versions (alasql ${alasql.version}, hyperformula ${HyperFormula.version})`, notices.includes(`AlaSQL ${alasql.version}`) && notices.includes(`HyperFormula ${HyperFormula.version}`));
+check('vendored file names carry the same versions', vendored.includes(`alasql-${alasql.version}.min.js`) && vendored.includes(`hyperformula-${HyperFormula.version}.full.min.js`));
+check('every page footer links source, licence and notices', ['public/reconciliation.html'].every((p) => /data-source-link/.test(txt(p)) && txt(p).includes('/LICENSE.txt') && txt(p).includes('/THIRD_PARTY_NOTICES.txt')));
+
+// ---------- 9. house rules ----------
+
+section('9. House rules');
 
 const dashFree = (txt) => !new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']').test(txt);
 const walkFiles = (dir) => readdirSync(new URL(dir, root)).flatMap((f) => {

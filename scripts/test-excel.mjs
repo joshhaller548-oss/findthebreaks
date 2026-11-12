@@ -66,7 +66,7 @@ expect('drill 6 keep tests the count directly', 6, { invoice_count: '=COUNTIF(in
 expect('drill 7 INDEX MATCH and keep on the raw columns', 7, { bl_tonnage: '=INDEX(cargoes!F:F, MATCH(B2, cargoes!A:A, 0))', difference_mt: '=D2-G2', keep: '=D2<>G2' }, { verdict: 'correct', notes: 1 });
 expect('drill 7 SUMIFS with an orphan guard', 7, { bl_tonnage: '=SUMIFS(cargoes!F:F, cargoes!A:A, B2)', difference_mt: '=D2-G2', keep: '=AND(COUNTIF(cargoes!A:A, B2)>0, H2<>0)' }, { verdict: 'correct', notes: 0 });
 expect('drill 8 ROUND and XLOOKUP', 8, { contract_price: '=XLOOKUP(B2, cargoes!A:A, cargoes!J:J)', difference_usd_per_mt: '=ROUND(E2-G2, 2)', keep: '=H2<>0' }, { verdict: 'correct' });
-expect('drill 9 one formula in the total cell, no helper', 9, { total: '=SUMPRODUCT((COUNTIF(invoices!$B$2:$B${inv_last},cargoes!$A$2:$A${cg_last})>0)*cargoes!$F$2:$F${cg_last}*cargoes!$J$2:$J${cg_last})-SUMPRODUCT((COUNTIF(cargoes!$A$2:$A${cg_last},invoices!$B$2:$B${inv_last})>0)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last})' }, { verdict: 'correct' });
+expect('drill 9 one formula in the total cell, no helper', 9, { total: '=SUMPRODUCT((COUNTIF(cargoes!$A$2:$A${cg_last},invoices!$B$2:$B${inv_last})>0)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last})-SUMPRODUCT((COUNTIF(invoices!$B$2:$B${inv_last},cargoes!$A$2:$A${cg_last})>0)*cargoes!$F$2:$F${cg_last}*cargoes!$J$2:$J${cg_last})' }, { verdict: 'correct' });
 
 // Wrong answers and errors get a targeted message
 expect('drill 4 bare MATCH gets the count hint, and a note on the #N/A rows', 4, { keep: '=MATCH(A2, invoices!$B:$B, 0)' }, { verdict: 'wrong', code: 'pitfall:count_not_zero', notes: 1 });
@@ -78,9 +78,10 @@ expect('drill 1 nothing written', 1, { keep: '' }, { verdict: 'error', code: 'em
 expect('drill 4 sheet name misspelt', 4, { keep: '=COUNTIF(invoice!B:B, A2)=0' }, { verdict: 'error', code: 'cell_REF' });
 expect('drill 3 lookup in the wrong column', 3, { country: '=VLOOKUP(C2, counterparties!B:D, 1, FALSE)', payment_terms_days: '=VLOOKUP(C2, counterparties!A:D, 4, FALSE)' }, { verdict: 'error', code: 'cell_NA' });
 expect('drill 2 ranges of different sizes', 2, { total_tonnage: '=SUMIFS(cargoes!F2:F31, cargoes!C2:C30, A2)' }, { verdict: 'error', code: 'cell_VALUE' });
-expect('drill 9 whole columns inside SUMPRODUCT', 9, { difference: '=IF(COUNTIF(invoices!B:B, A2)=0, 0, F2*J2-SUMPRODUCT((invoices!B:B=A2)*invoices!D:D*invoices!E:E))', total: '=SUM(K2:K{cg_last})' }, { verdict: 'error', code: 'cell_VALUE' });
+expect('drill 9 whole columns inside SUMPRODUCT', 9, { difference: '=IF(COUNTIF(invoices!B:B, A2)=0, 0, SUMPRODUCT((invoices!B:B=A2)*invoices!D:D*invoices!E:E)-F2*J2)', total: '=SUM(K2:K{cg_last})' }, { verdict: 'error', code: 'cell_VALUE' });
 expect('drill 9 total over the whole column includes itself', 9, { difference: drill(9).excel.model.difference, total: '=SUM(K:K)' }, { verdict: 'error', code: 'cell_CYCLE' });
 expect('drill 7 BL minus invoiced', 7, { bl_tonnage: LOOK_BL, difference_mt: '=G2-D2', keep: '=H2<>0' }, { verdict: 'wrong', code: 'sign_flip' });
+expect('drill 9 contract minus invoiced, the old direction', 9, { difference: '=IF(COUNTIF(invoices!$B:$B, A2)=0, 0, F2*J2-SUMPRODUCT((invoices!$B$2:$B${inv_last}=A2)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last}))', total: '=SUM(K2:K{cg_last})' }, { verdict: 'wrong', code: 'sign_flip' });
 expect('drill 8 contract minus invoiced', 8, { contract_price: LOOK_CP, difference_usd_per_mt: '=G2-E2', keep: '=H2<>0' }, { verdict: 'wrong', code: 'sign_flip' });
 expect('drill 6 keep column missing', 6, { invoice_count: '=COUNTIF(invoices!B:B, A2)', keep: '' }, { verdict: 'error', code: 'empty' });
 expect('drill 6 counted in the wrong sheet', 6, { invoice_count: '=COUNTIF(cargoes!A:A, A2)', keep: '=K2>1' }, { verdict: 'wrong', code: 'empty' });

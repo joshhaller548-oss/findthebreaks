@@ -7,11 +7,14 @@
     "verify": "node scripts/verify-reconciliation.mjs",
     "test": "node scripts/test-drill9.mjs && node scripts/test-store.mjs && node scripts/test-checker.mjs && node scripts/test-excel.mjs",
     "serve": "node scripts/serve.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "notices": "node scripts/build-notices.mjs",
+    "check-deploy": "node scripts/check-deploy.mjs"
   },
   "devDependencies": {
     "alasql": "4.21.1",
     "hyperformula": "3.5.0",
     "puppeteer-core": "25.15.0"
-  }
+  },
+  "license": "GPL-3.0-only"
 }

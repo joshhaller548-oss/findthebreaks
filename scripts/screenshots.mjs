@@ -117,9 +117,9 @@ const log = (label, text) => console.log(`${label.padEnd(24)}: ${text}`);
   await shot(page, '.layout', '04-excel-drill7-correct-sheet');
 
   await go(page, 9);
-  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, F2*J2-VLOOKUP(A2, invoices!B:E, 3, FALSE)*VLOOKUP(A2, invoices!B:E, 4, FALSE))', `=SUM(K2:K${counts.cg_last})`]);
+  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, VLOOKUP(A2, invoices!B:E, 3, FALSE)*VLOOKUP(A2, invoices!B:E, 4, FALSE)-F2*J2)', `=SUM(K2:K${counts.cg_last})`]);
   log('excel 9, first match', await verdict(page));
-  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, F2*J2-SUMPRODUCT((invoices!B:B=A2)*invoices!D:D*invoices!E:E))', `=SUM(K2:K${counts.cg_last})`]);
+  await excel(page, ['=IF(COUNTIF(invoices!B:B, A2)=0, 0, SUMPRODUCT((invoices!B:B=A2)*invoices!D:D*invoices!E:E)-F2*J2)', `=SUM(K2:K${counts.cg_last})`]);
   log('excel 9, whole columns', await verdict(page));
   await shot(page, '.work', '05-excel-drill9-error');
 
@@ -138,7 +138,7 @@ const log = (label, text) => console.log(`${label.padEnd(24)}: ${text}`);
   await sql(page, 'SELECT CARGO_ID, VESSEL, COUNTERPARTY FROM CARGOES WHERE CARGO_ID NOT IN (SELECT CARGO_ID FROM INVOICES)');
   log('sql 4, upper case NOT IN', await verdict(page));
   await go(page, 9, 'sql');
-  await sql(page, 'SELECT SUM(c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price) AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
+  await sql(page, 'SELECT SUM(i.invoiced_tonnage * i.invoiced_price - c.bl_tonnage * c.contract_price) AS diff FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id');
   log('sql 9, row by row', await verdict(page));
   await shot(page, '.work', '06-sql-drill9-row-by-row');
   await page.close();

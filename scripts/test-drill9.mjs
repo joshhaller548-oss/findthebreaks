@@ -21,12 +21,13 @@ for (const i of invoices) {
   invoicedCents.set(i.cargo_id, (invoicedCents.get(i.cargo_id) || 0) + i.invoiced_tonnage * cents(i.invoiced_price));
 }
 
-// Per cargo: contract value minus everything invoiced against it
+// Per cargo: everything invoiced against it minus contract value.
+// Positive means invoiced above contract, the same direction as drills 7 and 8.
 let perCargo = 0;
 const lines = [];
 for (const [id, inv] of invoicedCents) {
   const c = book.get(id);
-  const diff = c.bl_tonnage * cents(c.contract_price) - inv;
+  const diff = inv - c.bl_tonnage * cents(c.contract_price);
   perCargo += diff;
   if (diff !== 0) lines.push([id, diff]);
 }
@@ -35,7 +36,7 @@ for (const [id, inv] of invoicedCents) {
 let rowByRow = 0;
 for (const i of invoices) {
   const c = book.get(i.cargo_id);
-  if (c) rowByRow += c.bl_tonnage * cents(c.contract_price) - i.invoiced_tonnage * cents(i.invoiced_price);
+  if (c) rowByRow += i.invoiced_tonnage * cents(i.invoiced_price) - c.bl_tonnage * cents(c.contract_price);
 }
 
 console.log('Cargoes where contract and invoiced value differ:');
@@ -43,19 +44,23 @@ for (const [id, d] of lines) console.log(`  ${id}  ${usd(d).padStart(16)}`);
 console.log(`  ${'total'.padEnd(8)}  ${usd(perCargo).padStart(16)}`);
 console.log(`Row by row join gives ${usd(rowByRow)}`);
 
-const EXPECTED = -660223390; // USD -6,602,233.90, confirmed by hand by the site owner
-const EXPECTED_ROW_BY_ROW = -80549020; // USD -805,490.20
+// Figures confirmed by hand by the site owner
+const EXPECTED = 660223390; // USD +6,602,233.90
+const EXPECTED_ROW_BY_ROW = 80549020; // USD +805,490.20
+const EXPECTED_LINES = { 'CRG-1009': -15086980, 'CRG-1018': 579674370, 'CRG-1020': 77508000, 'CRG-1024': 18128000 };
 let fails = 0;
 const check = (label, ok) => {
   if (!ok) fails++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`);
 };
-check('drill 9 per cargo is USD -6,602,233.90 to the cent', perCargo === EXPECTED);
-check('row by row join is USD -805,490.20 to the cent', rowByRow === EXPECTED_ROW_BY_ROW);
+check('drill 9 per cargo is USD +6,602,233.90 to the cent', perCargo === EXPECTED);
+check('each cargo line matches: CRG-1018 +5,796,743.70, CRG-1020 +775,080.00, CRG-1024 +181,280.00, CRG-1009 -150,869.80',
+  lines.length === Object.keys(EXPECTED_LINES).length && lines.every(([id, d]) => EXPECTED_LINES[id] === d));
+check('row by row join is USD +805,490.20 to the cent', rowByRow === EXPECTED_ROW_BY_ROW);
 check('the gap between the two is exactly one cargo invoiced twice', (() => {
   const dup = [...new Set(invoices.map((i) => i.cargo_id))].filter((id) => invoices.filter((i) => i.cargo_id === id).length > 1);
   if (dup.length !== 1) return false;
   const c = book.get(dup[0]);
-  return rowByRow - perCargo === c.bl_tonnage * cents(c.contract_price);
+  return perCargo - rowByRow === c.bl_tonnage * cents(c.contract_price);
 })());
 process.exit(fails ? 1 : 0);

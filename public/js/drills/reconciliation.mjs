@@ -178,7 +178,7 @@ HAVING COUNT(*) > 1`,
     title: 'Value comparison: tonnage',
     tag: 'join + compare',
     finds: 'tonnage_mismatch',
-    question: 'Where does invoiced tonnage disagree with BL tonnage? cargo_id, bl_tonnage, invoiced_tonnage, and the difference (invoiced minus BL).',
+    question: 'Where does invoiced tonnage disagree with BL tonnage? cargo_id, bl_tonnage, invoiced_tonnage, and the difference, invoiced minus BL. Positive means invoiced above the BL figure.',
     ordered: false,
     signNote: 'invoiced minus BL',
     hint: {
@@ -206,7 +206,7 @@ WHERE i.invoiced_tonnage <> c.bl_tonnage`,
     title: 'Value comparison: price',
     tag: 'join + compare',
     finds: 'price_mismatch',
-    question: 'Where does invoiced price disagree with contract price? cargo_id, contract_price, invoiced_price, and the difference (invoiced minus contract).',
+    question: 'Where does invoiced price disagree with contract price? cargo_id, contract_price, invoiced_price, and the difference, invoiced minus contract. Positive means invoiced above contract.',
     ordered: false,
     signNote: 'invoiced minus contract',
     hint: {
@@ -233,12 +233,12 @@ WHERE i.invoiced_price <> c.contract_price`,
     id: 9,
     title: 'Put a number on it',
     tag: 'subquery',
-    question: 'Across every cargo that has at least one invoice, what is contract value (BL tonnage x contract price) minus total invoiced value, in USD?',
+    question: 'Across every cargo that has at least one invoice, what is total invoiced value minus contract value (BL tonnage x contract price), in USD? Positive means invoiced above contract, the same direction as drills 7 and 8.',
     ordered: false,
-    signNote: 'contract value minus invoiced value',
+    signNote: 'invoiced value minus contract value',
     hint: {
-      sql: "Total the invoices for each cargo first, then compare each cargo's total to its contract value. Watch what a plain join does to a cargo invoiced twice.",
-      excel: 'Work per cargo in the helper column: contract value minus the value of every invoice for that cargo, and nothing for a cargo with no invoice. Then add the column up in the total cell. Watch what VLOOKUP does to a cargo invoiced twice.',
+      sql: "Total the invoices for each cargo first, then take each cargo's contract value away from its invoiced total. Watch what a plain join does to a cargo invoiced twice.",
+      excel: 'Work per cargo in the helper column: the value of every invoice for that cargo minus its contract value, and nothing for a cargo with no invoice. Then add the column up in the total cell. Watch what VLOOKUP does to a cargo invoiced twice.',
     },
     why: {
       sql: 'The subquery collapses invoices to one row per cargo before the join. Join row by row instead and the duplicate matches its contract twice, so the double bill cancels out and disappears.',
@@ -246,7 +246,7 @@ WHERE i.invoiced_price <> c.contract_price`,
     },
     // Invoices are summed per cargo first, so the duplicate shows up as an
     // overbill instead of cancelling itself out on a row by row join.
-    sql: `SELECT ROUND(SUM(c.bl_tonnage * c.contract_price - inv.invoiced_value), 2) AS usd_difference
+    sql: `SELECT ROUND(SUM(inv.invoiced_value - c.bl_tonnage * c.contract_price), 2) AS usd_difference
 FROM cargoes c
 JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS invoiced_value
       FROM invoices
@@ -257,7 +257,7 @@ JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS invoiced_value
       columns: [{ name: 'difference', role: 'helper' }],
       total: { name: 'usd_difference', label: 'total' },
       model: {
-        difference: '=IF(COUNTIF(invoices!$B:$B, A2)=0, 0, F2*J2-SUMPRODUCT((invoices!$B$2:$B${inv_last}=A2)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last}))',
+        difference: '=IF(COUNTIF(invoices!$B:$B, A2)=0, 0, SUMPRODUCT((invoices!$B$2:$B${inv_last}=A2)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last})-F2*J2)',
         total: '=SUM(K2:K{cg_last})',
       },
     },
@@ -330,7 +330,7 @@ FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id`,
   {
     drill: 9, id: 'row_by_row_join', lang: 'sql', match: 'value',
     message: 'That is the row by row figure. A cargo invoiced twice matches its contract twice, so the double bill cancels out and the biggest break disappears. Total the invoices per cargo before comparing.',
-    sql: `SELECT ROUND(SUM(c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price), 2) AS usd_difference
+    sql: `SELECT ROUND(SUM(i.invoiced_tonnage * i.invoiced_price - c.bl_tonnage * c.contract_price), 2) AS usd_difference
 FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id`,
   },
 
@@ -413,21 +413,21 @@ FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id`,
     drill: 9, id: 'first_match_only', lang: 'excel', match: 'value',
     message: 'VLOOKUP finds only the first invoice for each cargo, so a cargo invoiced twice looks billed once and the double bill disappears. Add up every invoice for the cargo, with SUMPRODUCT.',
     formulas: {
-      difference: '=IF(COUNTIF(invoices!$B:$B, A2)=0, 0, F2*J2-VLOOKUP(A2, invoices!$B:$E, 3, FALSE)*VLOOKUP(A2, invoices!$B:$E, 4, FALSE))',
+      difference: '=IF(COUNTIF(invoices!$B:$B, A2)=0, 0, VLOOKUP(A2, invoices!$B:$E, 3, FALSE)*VLOOKUP(A2, invoices!$B:$E, 4, FALSE)-F2*J2)',
       total: '=SUM(K2:K{cg_last})',
     },
   },
   {
     drill: 9, id: 'includes_uninvoiced', lang: 'excel', match: 'value',
-    message: 'Your total counts the cargoes with no invoice at all, as if each were a break worth its full contract value. The question covers only cargoes with at least one invoice.',
+    message: 'Your total counts the cargoes with no invoice at all, as if each were underbilled by its full contract value. The question covers only cargoes with at least one invoice.',
     formulas: {
-      difference: '=F2*J2-SUMPRODUCT((invoices!$B$2:$B${inv_last}=A2)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last})',
+      difference: '=SUMPRODUCT((invoices!$B$2:$B${inv_last}=A2)*invoices!$D$2:$D${inv_last}*invoices!$E$2:$E${inv_last})-F2*J2',
       total: '=SUM(K2:K{cg_last})',
     },
   },
   {
     drill: 9, id: 'grand_totals', lang: 'excel', match: 'value',
     message: 'That compares the whole cargo book with every invoice, so it counts cargoes nobody invoiced and the orphan invoice as well. Restrict both sides to cargoes that have an invoice.',
-    formulas: { total: '=SUMPRODUCT(cargoes!$F$2:$F${cg_last}, cargoes!$J$2:$J${cg_last})-SUMPRODUCT(invoices!$D$2:$D${inv_last}, invoices!$E$2:$E${inv_last})' },
+    formulas: { total: '=SUMPRODUCT(invoices!$D$2:$D${inv_last}, invoices!$E$2:$E${inv_last})-SUMPRODUCT(cargoes!$F$2:$F${cg_last}, cargoes!$J$2:$J${cg_last})' },
   },
 ];

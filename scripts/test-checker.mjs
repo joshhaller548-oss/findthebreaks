@@ -47,7 +47,7 @@ expect('drill 4 IS NULL on the join key', 4, `SELECT c.cargo_id, c.vessel, c.cou
 expect('drill 6 COUNT of a column', 6, `SELECT cargo_id, COUNT(invoice_no) AS n FROM invoices GROUP BY cargo_id HAVING COUNT(invoice_no) > 1`, { verdict: 'correct' });
 expect('drill 6 HAVING on alias', 6, `SELECT cargo_id, COUNT(*) AS n FROM invoices GROUP BY cargo_id HAVING n > 1`, { verdict: 'correct' });
 expect('drill 8 without ROUND (float noise within tolerance)', 8, `SELECT c.cargo_id, c.contract_price, i.invoiced_price, i.invoiced_price - c.contract_price AS d FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoiced_price <> c.contract_price`, { verdict: 'correct' });
-expect('drill 9 no ROUND', 9, `SELECT SUM(c.bl_tonnage * c.contract_price - inv.v) AS x FROM cargoes c JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS v FROM invoices GROUP BY cargo_id) AS inv ON c.cargo_id = inv.cargo_id`, { verdict: 'correct' });
+expect('drill 9 no ROUND', 9, `SELECT SUM(inv.v - c.bl_tonnage * c.contract_price) AS x FROM cargoes c JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS v FROM invoices GROUP BY cargo_id) AS inv ON c.cargo_id = inv.cargo_id`, { verdict: 'correct' });
 
 // Wrong answers get the right diagnosis
 expect('drill 1 SELECT *', 1, `SELECT * FROM cargoes WHERE load_port = 'Puerto Bolivar'`, { verdict: 'wrong', code: 'extra_columns' });
@@ -66,7 +66,7 @@ expect('drill 6 WHERE COUNT', 6, `SELECT cargo_id, COUNT(*) AS n FROM invoices W
 expect('drill 7 BL minus invoiced', 7, `SELECT c.cargo_id, c.bl_tonnage, i.invoiced_tonnage, c.bl_tonnage - i.invoiced_tonnage AS d FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoiced_tonnage <> c.bl_tonnage`, { verdict: 'wrong', code: 'sign_flip' });
 expect('drill 7 only the tonnage breaks, no difference column', 7, `SELECT c.cargo_id, c.bl_tonnage, i.invoiced_tonnage FROM cargoes c JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoiced_tonnage <> c.bl_tonnage`, { verdict: 'wrong', code: 'missing_columns' });
 expect('drill 5 starting from cargoes', 5, `SELECT i.invoice_no, i.cargo_id, i.counterparty FROM cargoes c LEFT JOIN invoices i ON c.cargo_id = i.cargo_id WHERE i.invoice_no IS NULL`, { verdict: 'wrong' });
-expect('drill 9 invoiced minus contract', 9, `SELECT SUM(inv.v - c.bl_tonnage * c.contract_price) AS x FROM cargoes c JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS v FROM invoices GROUP BY cargo_id) AS inv ON c.cargo_id = inv.cargo_id`, { verdict: 'wrong', code: 'sign_flip' });
+expect('drill 9 contract minus invoiced, the old direction', 9, `SELECT SUM(c.bl_tonnage * c.contract_price - inv.v) AS x FROM cargoes c JOIN (SELECT cargo_id, SUM(invoiced_tonnage * invoiced_price) AS v FROM invoices GROUP BY cargo_id) AS inv ON c.cargo_id = inv.cargo_id`, { verdict: 'wrong', code: 'sign_flip' });
 expect('a DELETE does not touch the data', 1, `DELETE FROM cargoes`, { verdict: 'error', code: 'not_select' });
 expect('data intact after the DELETE', 1, drill(1).sql, { verdict: 'correct' });
 expect('empty editor', 1, `   `, { verdict: 'error', code: 'empty' });
