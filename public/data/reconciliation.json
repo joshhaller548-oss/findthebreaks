@@ -6,7 +6,7 @@
       {
         "cargo_id": "CRG-1001",
         "vessel": "Nord Harmony",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 67498,
@@ -18,7 +18,7 @@
       {
         "cargo_id": "CRG-1002",
         "vessel": "Coral Bay",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "load_port": "Balikpapan",
         "grade": "NAR 5500",
         "bl_tonnage": 48245,
@@ -30,7 +30,7 @@
       {
         "cargo_id": "CRG-1003",
         "vessel": "Bright Horizon",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Puerto Bolivar",
         "grade": "API 2",
         "bl_tonnage": 63409,
@@ -42,7 +42,7 @@
       {
         "cargo_id": "CRG-1004",
         "vessel": "Atlantic Grace",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 67789,
@@ -54,7 +54,7 @@
       {
         "cargo_id": "CRG-1005",
         "vessel": "Rio Cesar",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 61965,
@@ -66,7 +66,7 @@
       {
         "cargo_id": "CRG-1006",
         "vessel": "Star Magdalena",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 66083,
@@ -78,7 +78,7 @@
       {
         "cargo_id": "CRG-1007",
         "vessel": "Iron Meridian",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Puerto Bolivar",
         "grade": "NAR 5500",
         "bl_tonnage": 70066,
@@ -90,7 +90,7 @@
       {
         "cargo_id": "CRG-1008",
         "vessel": "Mineral Hope",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "NAR 5500",
         "bl_tonnage": 71057,
@@ -102,7 +102,7 @@
       {
         "cargo_id": "CRG-1009",
         "vessel": "Bulk Andes",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 70172,
@@ -114,7 +114,7 @@
       {
         "cargo_id": "CRG-1010",
         "vessel": "Aegean Trader",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "load_port": "Balikpapan",
         "grade": "NAR 4200",
         "bl_tonnage": 61591,
@@ -126,7 +126,7 @@
       {
         "cargo_id": "CRG-1011",
         "vessel": "Sea Falcon",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 50303,
@@ -138,7 +138,7 @@
       {
         "cargo_id": "CRG-1012",
         "vessel": "Ocean Pioneer",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "NAR 5500",
         "bl_tonnage": 74341,
@@ -150,7 +150,7 @@
       {
         "cargo_id": "CRG-1013",
         "vessel": "Ionian Spirit",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 67307,
@@ -162,7 +162,7 @@
       {
         "cargo_id": "CRG-1014",
         "vessel": "Santa Catalina",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 61994,
@@ -174,7 +174,7 @@
       {
         "cargo_id": "CRG-1015",
         "vessel": "Kota Mutiara",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 63596,
@@ -186,7 +186,7 @@
       {
         "cargo_id": "CRG-1016",
         "vessel": "Morning Glory",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 68269,
@@ -198,7 +198,7 @@
       {
         "cargo_id": "CRG-1017",
         "vessel": "Rio Cesar",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 50157,
@@ -210,7 +210,7 @@
       {
         "cargo_id": "CRG-1018",
         "vessel": "Cape Orchid",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 49566,
@@ -222,7 +222,7 @@
       {
         "cargo_id": "CRG-1019",
         "vessel": "Silver Tern",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "load_port": "Puerto Bolivar",
         "grade": "NAR 5500",
         "bl_tonnage": 73756,
@@ -234,7 +234,7 @@
       {
         "cargo_id": "CRG-1020",
         "vessel": "Atlantic Grace",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 60899,
@@ -246,7 +246,7 @@
       {
         "cargo_id": "CRG-1021",
         "vessel": "Star Magdalena",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 56766,
@@ -258,7 +258,7 @@
       {
         "cargo_id": "CRG-1022",
         "vessel": "Bulk Andes",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "load_port": "Balikpapan",
         "grade": "NAR 5500",
         "bl_tonnage": 47275,
@@ -270,7 +270,7 @@
       {
         "cargo_id": "CRG-1023",
         "vessel": "Zulu Star",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 66091,
@@ -282,7 +282,7 @@
       {
         "cargo_id": "CRG-1024",
         "vessel": "Coral Bay",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "load_port": "Balikpapan",
         "grade": "NAR 4200",
         "bl_tonnage": 47940,
@@ -294,7 +294,7 @@
       {
         "cargo_id": "CRG-1025",
         "vessel": "Great Condor",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "load_port": "Puerto Bolivar",
         "grade": "NAR 5500",
         "bl_tonnage": 56182,
@@ -306,7 +306,7 @@
       {
         "cargo_id": "CRG-1026",
         "vessel": "Baltic Wave",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "load_port": "Puerto Bolivar",
         "grade": "API 2",
         "bl_tonnage": 69259,
@@ -318,7 +318,7 @@
       {
         "cargo_id": "CRG-1027",
         "vessel": "Kota Mutiara",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "load_port": "Richards Bay",
         "grade": "API 4",
         "bl_tonnage": 49820,
@@ -330,7 +330,7 @@
       {
         "cargo_id": "CRG-1028",
         "vessel": "Mineral Hope",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "load_port": "Balikpapan",
         "grade": "NAR 5500",
         "bl_tonnage": 52280,
@@ -342,7 +342,7 @@
       {
         "cargo_id": "CRG-1029",
         "vessel": "Nord Harmony",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Santa Marta",
         "grade": "API 2",
         "bl_tonnage": 59064,
@@ -354,7 +354,7 @@
       {
         "cargo_id": "CRG-1030",
         "vessel": "Morning Glory",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "load_port": "Puerto Bolivar",
         "grade": "API 2",
         "bl_tonnage": 74605,
@@ -368,7 +368,7 @@
       {
         "invoice_no": "INV-26-0141",
         "cargo_id": "CRG-1002",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "invoiced_tonnage": 48245,
         "invoiced_price": 92.35,
         "invoice_date": "2026-01-31"
@@ -376,7 +376,7 @@
       {
         "invoice_no": "INV-26-0142",
         "cargo_id": "CRG-1003",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 63409,
         "invoiced_price": 116.15,
         "invoice_date": "2026-01-31"
@@ -384,7 +384,7 @@
       {
         "invoice_no": "INV-26-0143",
         "cargo_id": "CRG-1001",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 67498,
         "invoiced_price": 110,
         "invoice_date": "2026-02-01"
@@ -392,7 +392,7 @@
       {
         "invoice_no": "INV-26-0144",
         "cargo_id": "CRG-1004",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 67789,
         "invoiced_price": 108.85,
         "invoice_date": "2026-02-12"
@@ -400,7 +400,7 @@
       {
         "invoice_no": "INV-26-0145",
         "cargo_id": "CRG-1005",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "invoiced_tonnage": 61965,
         "invoiced_price": 105.8,
         "invoice_date": "2026-02-12"
@@ -408,7 +408,7 @@
       {
         "invoice_no": "INV-26-0146",
         "cargo_id": "CRG-1006",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "invoiced_tonnage": 66083,
         "invoiced_price": 109.5,
         "invoice_date": "2026-02-21"
@@ -416,7 +416,7 @@
       {
         "invoice_no": "INV-26-0147",
         "cargo_id": "CRG-1007",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 70066,
         "invoiced_price": 96.5,
         "invoice_date": "2026-02-26"
@@ -424,7 +424,7 @@
       {
         "invoice_no": "INV-26-0148",
         "cargo_id": "CRG-1008",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 71057,
         "invoiced_price": 98.4,
         "invoice_date": "2026-03-04"
@@ -432,7 +432,7 @@
       {
         "invoice_no": "INV-26-0149",
         "cargo_id": "CRG-1009",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 70172,
         "invoiced_price": 103.85,
         "invoice_date": "2026-03-07"
@@ -440,7 +440,7 @@
       {
         "invoice_no": "INV-26-0150",
         "cargo_id": "CRG-1010",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "invoiced_tonnage": 61591,
         "invoiced_price": 84.25,
         "invoice_date": "2026-03-13"
@@ -448,7 +448,7 @@
       {
         "invoice_no": "INV-26-0151",
         "cargo_id": "CRG-1012",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 74341,
         "invoiced_price": 98.5,
         "invoice_date": "2026-03-27"
@@ -456,7 +456,7 @@
       {
         "invoice_no": "INV-26-0152",
         "cargo_id": "CRG-1013",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 67307,
         "invoiced_price": 107.55,
         "invoice_date": "2026-03-29"
@@ -464,7 +464,7 @@
       {
         "invoice_no": "INV-26-0153",
         "cargo_id": "CRG-1014",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "invoiced_tonnage": 61994,
         "invoiced_price": 103.4,
         "invoice_date": "2026-04-09"
@@ -472,7 +472,7 @@
       {
         "invoice_no": "INV-26-0154",
         "cargo_id": "CRG-1016",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "invoiced_tonnage": 68269,
         "invoiced_price": 109,
         "invoice_date": "2026-04-23"
@@ -480,7 +480,7 @@
       {
         "invoice_no": "INV-26-0155",
         "cargo_id": "CRG-1017",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "invoiced_tonnage": 50157,
         "invoiced_price": 101.2,
         "invoice_date": "2026-04-26"
@@ -488,7 +488,7 @@
       {
         "invoice_no": "INV-26-0156",
         "cargo_id": "CRG-1018",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 49566,
         "invoiced_price": 116.95,
         "invoice_date": "2026-04-26"
@@ -496,7 +496,7 @@
       {
         "invoice_no": "INV-26-0157",
         "cargo_id": "CRG-1018",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 49566,
         "invoiced_price": 116.95,
         "invoice_date": "2026-05-05"
@@ -504,7 +504,7 @@
       {
         "invoice_no": "INV-26-0158",
         "cargo_id": "CRG-1020",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "invoiced_tonnage": 68099,
         "invoiced_price": 107.65,
         "invoice_date": "2026-05-11"
@@ -512,7 +512,7 @@
       {
         "invoice_no": "INV-26-0159",
         "cargo_id": "CRG-1019",
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "invoiced_tonnage": 73756,
         "invoiced_price": 100.3,
         "invoice_date": "2026-05-14"
@@ -520,7 +520,7 @@
       {
         "invoice_no": "INV-26-0160",
         "cargo_id": "CRG-1021",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 56766,
         "invoiced_price": 116.55,
         "invoice_date": "2026-05-16"
@@ -528,7 +528,7 @@
       {
         "invoice_no": "INV-26-0161",
         "cargo_id": "CRG-1022",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "invoiced_tonnage": 47275,
         "invoiced_price": 98.3,
         "invoice_date": "2026-05-18"
@@ -536,7 +536,7 @@
       {
         "invoice_no": "INV-26-0162",
         "cargo_id": "CRG-1024",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "invoiced_tonnage": 50000,
         "invoiced_price": 88,
         "invoice_date": "2026-06-11"
@@ -544,7 +544,7 @@
       {
         "invoice_no": "INV-26-0163",
         "cargo_id": "CRG-1027",
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "invoiced_tonnage": 49820,
         "invoiced_price": 103.5,
         "invoice_date": "2026-06-15"
@@ -552,7 +552,7 @@
       {
         "invoice_no": "INV-26-0164",
         "cargo_id": "CRG-1025",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "invoiced_tonnage": 56182,
         "invoiced_price": 91.3,
         "invoice_date": "2026-06-16"
@@ -560,7 +560,7 @@
       {
         "invoice_no": "INV-26-0165",
         "cargo_id": "CRG-1026",
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "invoiced_tonnage": 69259,
         "invoiced_price": 106.75,
         "invoice_date": "2026-06-18"
@@ -568,7 +568,7 @@
       {
         "invoice_no": "INV-26-0166",
         "cargo_id": "CRG-1028",
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "invoiced_tonnage": 52280,
         "invoiced_price": 94.05,
         "invoice_date": "2026-06-18"
@@ -576,7 +576,7 @@
       {
         "invoice_no": "INV-26-0167",
         "cargo_id": "CRG-1031",
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "invoiced_tonnage": 46627,
         "invoiced_price": 97.85,
         "invoice_date": "2026-06-24"
@@ -584,7 +584,7 @@
       {
         "invoice_no": "INV-26-0168",
         "cargo_id": "CRG-1029",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 59064,
         "invoiced_price": 117.7,
         "invoice_date": "2026-07-01"
@@ -592,7 +592,7 @@
       {
         "invoice_no": "INV-26-0169",
         "cargo_id": "CRG-1030",
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "invoiced_tonnage": 74605,
         "invoiced_price": 113.35,
         "invoice_date": "2026-07-09"
@@ -600,37 +600,37 @@
     ],
     "counterparties": [
       {
-        "counterparty": "Andino Carbones SA",
+        "counterparty": "Vallenor Carbones SA",
         "country": "Colombia",
         "credit_limit_usd": 25000000,
         "payment_terms_days": 30
       },
       {
-        "counterparty": "Drummond Trading Ltd",
+        "counterparty": "Marquesa Bulk Trading Ltd",
         "country": "Colombia",
         "credit_limit_usd": 40000000,
         "payment_terms_days": 30
       },
       {
-        "counterparty": "PT Borneo Bara Energi",
+        "counterparty": "PT Selindo Bara Nusantara",
         "country": "Indonesia",
         "credit_limit_usd": 15000000,
         "payment_terms_days": 15
       },
       {
-        "counterparty": "Highveld Coal Exports (Pty) Ltd",
+        "counterparty": "Sondela Ridge Coal (Pty) Ltd",
         "country": "South Africa",
         "credit_limit_usd": 20000000,
         "payment_terms_days": 20
       },
       {
-        "counterparty": "Nordmark Energiehandel GmbH",
+        "counterparty": "Halvetter Energiehandel GmbH",
         "country": "Germany",
         "credit_limit_usd": 35000000,
         "payment_terms_days": 45
       },
       {
-        "counterparty": "Marmara Enerji Ticaret AS",
+        "counterparty": "Selvira Enerji Ticaret AS",
         "country": "Turkey",
         "credit_limit_usd": 18000000,
         "payment_terms_days": 60

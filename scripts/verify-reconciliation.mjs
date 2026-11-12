@@ -5,16 +5,16 @@
 // hide behind itself. Then it reruns the SQL model answers to prove the
 // committed key is not stale. Exits non-zero on any failure.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { drills, pitfalls, DRILL_1_PORT } from '../drills/reconciliation.mjs';
+import { drills, pitfalls, DRILL_1_PORT } from '../public/js/drills/reconciliation.mjs';
 
 const require = createRequire(import.meta.url);
 const alasql = require('alasql');
 
 const root = new URL('../', import.meta.url);
-const data = JSON.parse(readFileSync(new URL('data/reconciliation.json', root), 'utf8'));
-const key = JSON.parse(readFileSync(new URL('data/reconciliation.key.json', root), 'utf8'));
+const data = JSON.parse(readFileSync(new URL('public/data/reconciliation.json', root), 'utf8'));
+const key = JSON.parse(readFileSync(new URL('public/data/reconciliation.key.json', root), 'utf8'));
 const { cargoes, invoices, counterparties } = data.tables;
 
 let failures = 0;
@@ -202,20 +202,41 @@ check('drill 1 without WHERE returns 30 rows', pit(1, 'no_where').row_count === 
 check(`drill 1 SELECT * returns right rows, ${cargoCols.length} columns not 3`, pit(1, 'select_star').row_count === portCount && pit(1, 'select_star').column_count === cargoCols.length);
 check('drill 2 without GROUP BY returns 30 raw rows not 6', pit(2, 'no_group_by').row_count === 30);
 check(`drill 6 without HAVING returns every invoiced cargo ID (${invByCargo.size})`, pit(6, 'no_having').row_count === invByCargo.size);
+check(`drill 4 INNER JOIN with DISTINCT returns ${invByCargo.size - 1} rows (every invoiced cargo)`, pit(4, 'inner_join_distinct').row_count === [...invByCargo.keys()].filter((id) => cargoById.has(id)).length);
+check(`drill 5 INNER JOIN returns ${innerJoinRows} rows`, pit(5, 'inner_join').row_count === innerJoinRows);
+check(`drills 7 and 8 without WHERE return every matched invoice (${innerJoinRows})`, pit(7, 'no_where').row_count === innerJoinRows && pit(8, 'no_where').row_count === innerJoinRows);
+check('every pitfall in the drill file has a computed result in the key', pitfalls.every((q) => pit(q.drill, q.id)));
+const pitfallRows = pitfalls.filter((q) => q.match === 'rows').map((q) => [q.drill, pit(q.drill, q.id).row_count, key.expected[q.drill].rows.length]);
+check('no row-count pitfall has the same count as the right answer', pitfallRows.every(([, n, exp]) => n !== exp));
 const rowByRow = round2(matchedPairs.reduce((s, [c, i]) => s + c.bl_tonnage * c.contract_price - i.invoiced_tonnage * i.invoiced_price, 0));
-check('drill 9 row by row join gives a different number (duplicate cancels out)', pit(9, 'row_by_row_join').rows[0][0] === rowByRow && rowByRow !== drill9, `${rowByRow} vs ${drill9}`);
+check('drill 9 row by row join gives a different number (duplicate cancels out)', pit(9, 'row_by_row_join').value === rowByRow && rowByRow !== drill9, `${rowByRow} vs ${drill9}`);
 
 // ---------- 7. house rules ----------
 
 section('7. House rules');
 
 const dashFree = (txt) => !new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']').test(txt);
-const files = [
-  ...['data/reconciliation.json', 'data/reconciliation.key.json'],
-  ...readdirSync(new URL('scripts/', root)).map((f) => `scripts/${f}`),
-  ...readdirSync(new URL('drills/', root)).map((f) => `drills/${f}`),
+const walkFiles = (dir) => readdirSync(new URL(dir, root)).flatMap((f) => {
+  const rel = `${dir}${f}`;
+  if (rel.startsWith('public/vendor/')) return [];
+  return statSync(new URL(rel, root)).isDirectory() ? walkFiles(`${rel}/`) : [rel];
+});
+const files = [...walkFiles('public/'), ...walkFiles('scripts/'), 'vercel.json', 'package.json'];
+const dashed = files.filter((f) => !dashFree(readFileSync(new URL(f, root), 'utf8')));
+check(`no em or en dashes in ${files.length} site and script files`, dashed.length === 0, dashed.join(', '));
+
+// Counts in hint text must come from the key. Drill numbers are allowed.
+const stripDrillRefs = (t) => t.replace(/\bdrills? \d+( (to|and) \d+)?/gi, '').replace(/\{\w+\}/g, '');
+const texts = [
+  ...drills.flatMap((d) => [...Object.values(d.hint || {}), ...Object.values(d.why || {})].map((t) => [`drill ${d.id} hint/why`, t])),
+  ...pitfalls.filter((q) => q.message).map((q) => [`pitfall ${q.drill}/${q.id}`, q.message]),
 ];
-for (const f of files) check(`no em or en dashes in ${f}`, dashFree(readFileSync(new URL(f, root), 'utf8')));
+const counted = texts.filter(([, t]) => /\d/.test(stripDrillRefs(t)));
+check(`no hard-coded numbers in ${texts.length} hint, explanation and pitfall texts`, counted.length === 0, counted.map(([l]) => l).join(', '));
+
+const retired = ['Drummond', 'Andino', 'Highveld', 'Nordmark', 'Borneo Bara', 'Marmara'];
+const raw = readFileSync(new URL('public/data/reconciliation.json', root), 'utf8');
+check('no retired counterparty names left in the data', retired.every((n) => !raw.includes(n)));
 
 // ---------- summary ----------
 

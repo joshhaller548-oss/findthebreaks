@@ -1,15 +1,15 @@
 // Generates the reconciliation dataset and its answer key.
 //
-//   data/reconciliation.json      the three tables every language reads
-//   data/reconciliation.key.json  the planted breaks, plus the expected result
-//                                 of every drill, computed by running the
-//                                 SQL model answers in AlaSQL
+//   public/data/reconciliation.json      the three tables every language reads
+//   public/data/reconciliation.key.json  the planted breaks, plus the expected result
+//                                        of every drill, computed by running
+//                                        the SQL model answers in AlaSQL
 //
 // Seeded, so a rerun produces byte identical output. Run verify afterwards.
 
 import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { drills, pitfalls } from '../drills/reconciliation.mjs';
+import { drills, pitfalls } from '../public/js/drills/reconciliation.mjs';
 
 const require = createRequire(import.meta.url);
 const alasql = require('alasql');
@@ -49,31 +49,34 @@ const addDays = (iso, n) => {
 
 // ---------- counterparties ----------
 
+// All six are invented and were checked against web search for real firms
+// of the same name. Ports and grades are real.
+
 const counterparties = [
-  { counterparty: 'Andino Carbones SA',         country: 'Colombia',     credit_limit_usd: 25000000, payment_terms_days: 30 },
-  { counterparty: 'Drummond Trading Ltd',       country: 'Colombia',     credit_limit_usd: 40000000, payment_terms_days: 30 },
-  { counterparty: 'PT Borneo Bara Energi',      country: 'Indonesia',    credit_limit_usd: 15000000, payment_terms_days: 15 },
-  { counterparty: 'Highveld Coal Exports (Pty) Ltd', country: 'South Africa', credit_limit_usd: 20000000, payment_terms_days: 20 },
-  { counterparty: 'Nordmark Energiehandel GmbH', country: 'Germany',     credit_limit_usd: 35000000, payment_terms_days: 45 },
-  { counterparty: 'Marmara Enerji Ticaret AS',  country: 'Turkey',       credit_limit_usd: 18000000, payment_terms_days: 60 },
+  { counterparty: 'Vallenor Carbones SA',         country: 'Colombia',     credit_limit_usd: 25000000, payment_terms_days: 30 },
+  { counterparty: 'Marquesa Bulk Trading Ltd',       country: 'Colombia',     credit_limit_usd: 40000000, payment_terms_days: 30 },
+  { counterparty: 'PT Selindo Bara Nusantara',      country: 'Indonesia',    credit_limit_usd: 15000000, payment_terms_days: 15 },
+  { counterparty: 'Sondela Ridge Coal (Pty) Ltd', country: 'South Africa', credit_limit_usd: 20000000, payment_terms_days: 20 },
+  { counterparty: 'Halvetter Energiehandel GmbH', country: 'Germany',     credit_limit_usd: 35000000, payment_terms_days: 45 },
+  { counterparty: 'Selvira Enerji Ticaret AS',  country: 'Turkey',       credit_limit_usd: 18000000, payment_terms_days: 60 },
 ];
 
 // Producers ship from their own coast. The two utilities buy from anywhere.
 const portsFor = {
-  'Andino Carbones SA': ['Puerto Bolivar', 'Santa Marta', 'Barranquilla'],
-  'Drummond Trading Ltd': ['Puerto Bolivar', 'Santa Marta'],
-  'PT Borneo Bara Energi': ['Balikpapan'],
-  'Highveld Coal Exports (Pty) Ltd': ['Richards Bay'],
-  'Nordmark Energiehandel GmbH': ['Puerto Bolivar', 'Santa Marta', 'Richards Bay'],
-  'Marmara Enerji Ticaret AS': ['Puerto Bolivar', 'Barranquilla', 'Balikpapan', 'Richards Bay'],
+  'Vallenor Carbones SA': ['Puerto Bolivar', 'Santa Marta', 'Barranquilla'],
+  'Marquesa Bulk Trading Ltd': ['Puerto Bolivar', 'Santa Marta'],
+  'PT Selindo Bara Nusantara': ['Balikpapan'],
+  'Sondela Ridge Coal (Pty) Ltd': ['Richards Bay'],
+  'Halvetter Energiehandel GmbH': ['Puerto Bolivar', 'Santa Marta', 'Richards Bay'],
+  'Selvira Enerji Ticaret AS': ['Puerto Bolivar', 'Barranquilla', 'Balikpapan', 'Richards Bay'],
 };
 const incotermsFor = {
-  'Andino Carbones SA': ['FOB'],
-  'Drummond Trading Ltd': ['FOB'],
-  'PT Borneo Bara Energi': ['FOB'],
-  'Highveld Coal Exports (Pty) Ltd': ['FOB'],
-  'Nordmark Energiehandel GmbH': ['CIF', 'CFR'],
-  'Marmara Enerji Ticaret AS': ['CFR', 'CIF'],
+  'Vallenor Carbones SA': ['FOB'],
+  'Marquesa Bulk Trading Ltd': ['FOB'],
+  'PT Selindo Bara Nusantara': ['FOB'],
+  'Sondela Ridge Coal (Pty) Ltd': ['FOB'],
+  'Halvetter Energiehandel GmbH': ['CIF', 'CFR'],
+  'Selvira Enerji Ticaret AS': ['CFR', 'CIF'],
 };
 const gradesFor = {
   'Puerto Bolivar': ['API 2', 'NAR 5500'],
@@ -100,12 +103,12 @@ const vessels = [
 
 // Weighted so drill 2 has a clear spread of totals
 const cpSchedule = shuffle([
-  ...Array(7).fill('Andino Carbones SA'),
-  ...Array(6).fill('Drummond Trading Ltd'),
-  ...Array(5).fill('PT Borneo Bara Energi'),
-  ...Array(4).fill('Highveld Coal Exports (Pty) Ltd'),
-  ...Array(5).fill('Nordmark Energiehandel GmbH'),
-  ...Array(3).fill('Marmara Enerji Ticaret AS'),
+  ...Array(7).fill('Vallenor Carbones SA'),
+  ...Array(6).fill('Marquesa Bulk Trading Ltd'),
+  ...Array(5).fill('PT Selindo Bara Nusantara'),
+  ...Array(4).fill('Sondela Ridge Coal (Pty) Ltd'),
+  ...Array(5).fill('Halvetter Energiehandel GmbH'),
+  ...Array(3).fill('Selvira Enerji Ticaret AS'),
 ]);
 
 // ---------- cargoes ----------
@@ -275,7 +278,9 @@ for (const d of drills) {
 }
 const pitfallResults = pitfalls.map((p) => {
   const r = run(p.sql);
-  return { drill: p.drill, id: p.id, row_count: r.rows.length, column_count: r.columns.length, rows: p.drill === 9 ? r.rows : undefined };
+  const out = { drill: p.drill, id: p.id, lang: p.lang, match: p.match, row_count: r.rows.length, column_count: r.columns.length };
+  if (p.match === 'value') out.value = r.rows[0][0];
+  return out;
 });
 
 // ---------- write ----------
@@ -294,7 +299,7 @@ const key = {
   pitfalls: pitfallResults,
 };
 
-writeFileSync(new URL('../data/reconciliation.json', import.meta.url), JSON.stringify(data, null, 2) + '\n');
-writeFileSync(new URL('../data/reconciliation.key.json', import.meta.url), JSON.stringify(key, null, 2) + '\n');
+writeFileSync(new URL('../public/data/reconciliation.json', import.meta.url), JSON.stringify(data, null, 2) + '\n');
+writeFileSync(new URL('../public/data/reconciliation.key.json', import.meta.url), JSON.stringify(key, null, 2) + '\n');
 console.log(`Wrote ${cargoes.length} cargoes, ${invoices.length} invoices, ${counterparties.length} counterparties.`);
 console.log(`Answer key: ${Object.keys(expected).length} drills, ${pitfallResults.length} pitfalls, engine alasql ${alasql.version}.`);
