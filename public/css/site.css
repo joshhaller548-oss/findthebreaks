@@ -138,7 +138,7 @@ header.site nav a[aria-current="page"] { color: var(--ink); border-bottom: 2px s
 
 /* ---------- landing: wordmark and task blocks ---------- */
 
-main.landing > .wordmark, main.landing > .task-blocks { max-width: none; }
+main.landing > .wordmark, main.landing .task-blocks { max-width: none; }
 .wordmark {
   font: 700 clamp(3.2rem, 11vw, 7.5rem)/0.9 var(--sans);
   text-transform: uppercase;
@@ -167,15 +167,14 @@ main.landing .lede + p { max-width: 64ch; }
   display: grid;
   gap: 0.35rem;
   padding: 1.1rem 1.2rem 1.2rem;
-  min-height: 9.5rem;
+  min-height: 7rem;
   align-content: start;
   text-decoration: none;
-  background: var(--ink);
-  color: var(--bg);
-  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  border: 2px solid var(--rule-strong);
   position: relative;
 }
-.task-block.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .task-block::after { content: '\2192'; position: absolute; right: 1.1rem; bottom: 0.9rem; font: 600 1.4rem var(--mono); }
 .task-block:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 .tb-eyebrow { font: 500 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
@@ -186,13 +185,20 @@ main.landing .lede + p { max-width: 64ch; }
 .tb-bar[hidden] { display: none; }
 .tb-bar > span { display: block; height: 100%; width: var(--done, 0%); background: currentColor; }
 
-/* The laytime desk, featured above the task blocks */
+/* The laytime desk: the one front door. The drills sit under it as
+   secondary practice. */
+.more-practice { margin-top: 2.6rem; max-width: 980px; }
+.more-title { font: 600 0.8rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.4rem; }
+.more-practice > p { color: var(--ink-2); max-width: 64ch; margin: 0; }
+.more-practice .task-blocks { margin-top: 1rem; }
+.fb-cta { justify-self: start; margin-top: 0.5rem; font: 700 0.9rem var(--sans); text-transform: uppercase; letter-spacing: 0.04em; background: var(--ink); color: var(--bg); padding: 0.6rem 0.9rem; }
 main.landing > .feature-block { max-width: none; }
 .feature-block {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   margin-top: 2rem;
   border: 2px solid var(--ink);
+  border-left: 8px solid var(--accent);
   background: var(--surface);
   color: var(--ink);
   text-decoration: none;

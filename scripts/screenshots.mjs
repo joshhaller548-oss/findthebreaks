@@ -727,6 +727,14 @@ for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 2
       if (width === 1360 && !dark) log('landing blocks', metas.join(' | '));
       const feature = await page.$eval('.feature-block', (a) => ({ href: a.getAttribute('href'), art: Boolean(a.querySelector('.harbour svg')), text: a.innerText }));
       expectThat(`landing ${width}: the laytime desk is featured, with its harbour, linking to /laytime`, feature.href === '/laytime' && feature.art && /Play the laytime desk/i.test(feature.text));
+      // One front door: "Start here" appears once, on the desk, and it is the
+      // first link in the page body; the drills sit under "More practice"
+      const doors = await page.evaluate(() => ({
+        startHere: [...document.querySelectorAll('main *')].filter((e) => e.children.length === 0 && /start here/i.test(e.textContent)).map((e) => e.closest('a')?.getAttribute('href')),
+        firstLink: document.querySelector('main a[href]')?.getAttribute('href'),
+        drillsUnder: [...document.querySelectorAll('.task-block')].every((a) => a.closest('.more-practice')),
+      }));
+      expectThat(`landing ${width}: one "Start here", on the laytime desk (${doors.startHere.join(', ')}), first in the page, drills secondary`, doors.startHere.length === 1 && doors.startHere[0] === '/laytime' && doors.firstLink === '/laytime' && doors.drillsUnder);
     }
     await page.screenshot({ path: `${OUT}/15-${name}-${width}${dark ? '-dark' : ''}.png`, fullPage: true });
     if (width === 1360 && !dark) {
