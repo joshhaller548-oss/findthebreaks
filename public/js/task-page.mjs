@@ -22,7 +22,9 @@ export function mountTaskPage(cfg) {
     drafts: new Map(),
     engines: new Map(),
     reveal: 0,
-    hint: false,
+    // Languages whose hint is open on this drill. A hint belongs to the tab
+    // it was opened on, so switching tabs never carries one across.
+    hints: new Set(),
     timed: null,
     // Drills whose answer was revealed in this visit, per language. A
     // correct run after a reveal earns a hollow tick, not a full one.
@@ -94,7 +96,7 @@ export function mountTaskPage(cfg) {
     if (state.timed && !state.timed.done && id !== 10) stopTimed();
     state.drillId = id;
     state.reveal = 0;
-    state.hint = false;
+    state.hints.clear();
     history.replaceState(null, '', `#drill-${id}`);
     renderList();
     renderWork();
@@ -157,7 +159,8 @@ export function mountTaskPage(cfg) {
     else parts.push(...question(d).filter(Boolean));
     if (d.timed) parts.push(...question(target, h('strong', {}, `Drill ${target.id}, ${target.title}. `)).filter(Boolean));
 
-    const hint = h('p', { class: 'hint', hidden: !state.hint }, h('strong', {}, 'Hint. '), text(target.hint?.[lang.id]));
+    const hintOpen = () => state.hints.has(lang.id);
+    const hint = h('p', { class: 'hint', hidden: !hintOpen() }, h('strong', {}, 'Hint. '), text(target.hint?.[lang.id]));
 
     const editorKey = d.timed ? `timed:${target.id}:${lang.id}` : draftKey(d.id);
     const initial = state.drafts.get(editorKey) ?? (d.timed ? '' : store.lastAnswer(task, d.id, lang.id));
@@ -175,11 +178,11 @@ export function mountTaskPage(cfg) {
     const runBtn = h('button', { class: 'btn primary', onclick: () => run(target, editor, verdict, d) }, 'Run and check');
     const hintBtn = h('button', {
       class: 'btn',
-      'aria-expanded': state.hint ? 'true' : 'false',
+      'aria-expanded': hintOpen() ? 'true' : 'false',
       onclick: () => {
-        state.hint = !state.hint;
-        hint.hidden = !state.hint;
-        hintBtn.setAttribute('aria-expanded', state.hint ? 'true' : 'false');
+        if (hintOpen()) state.hints.delete(lang.id); else state.hints.add(lang.id);
+        hint.hidden = !hintOpen();
+        hintBtn.setAttribute('aria-expanded', hintOpen() ? 'true' : 'false');
       },
     }, 'Hint');
     const answerBtn = h('button', { class: 'btn quiet reveal', onclick: () => revealStep(answerBtn, answer, target, lang) }, 'Show answer');
@@ -331,13 +334,13 @@ export function mountTaskPage(cfg) {
     state.timed = { step: 0, start: performance.now(), splits: [], revealed: new Set(), done: false };
     for (const k of [...state.drafts.keys()]) if (k.startsWith('timed:')) state.drafts.delete(k);
     state.reveal = 0;
-    state.hint = false;
+    state.hints.clear();
     renderWork();
   }
   function nextTimed() {
     state.timed.step++;
     state.reveal = 0;
-    state.hint = false;
+    state.hints.clear();
     renderWork();
   }
   function stopTimed() {

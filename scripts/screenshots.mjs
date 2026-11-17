@@ -289,6 +289,17 @@ for (const mode of ['reveal', 'slow']) {
   expectThat('contrast panel shows demurrage USD 12,500.00 under SHEX UU', contrast.includes('USD 12,500.00 payable to owner') && contrast.includes('SHEX UU'));
   await page.screenshot({ path: `${OUT}/10-laytime-top.png` });
 
+  // A hint opened on the Excel tab stays with Excel
+  await go(page, 2, 'excel', 'laytime/tools');
+  const hintShown = () => page.$eval('.work .hint', (e) => !e.hidden);
+  await page.evaluate(() => [...document.querySelectorAll('.work .actions .btn')].find((b) => b.textContent === 'Hint').click());
+  const onExcel = await hintShown();
+  await tab(page, 'SQL');
+  const onSql = await hintShown();
+  await tab(page, 'Excel');
+  const backOnExcel = await hintShown();
+  log('hint per tab', `Excel ${onExcel}, SQL ${onSql}, back on Excel ${backOnExcel}`);
+  expectThat('the hint opened on Excel does not show on the SQL tab, and is still open on Excel', onExcel && !onSql && backOnExcel);
   await go(page, 2, 'excel', 'laytime/tools');
   await excel(page, ['=K2']);
   log('lay excel 2, NOR', await verdict(page));
