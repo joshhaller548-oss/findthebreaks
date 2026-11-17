@@ -7,6 +7,8 @@ import { calculate, workedExample, deductions } from '../public/js/laytime/calc.
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
 import { createProfile } from '../public/js/desk/profile.mjs';
+import { glossary } from '../public/js/desk/glossary.mjs';
+import { verdictLabel } from '../public/js/check.mjs';
 import { afterCompletion, POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
@@ -242,6 +244,16 @@ check('the all time saved explanation is marked seen once, and stays seen', !pro
 const oldStore = mem();
 oldStore.setItem('findthebreaks:desk', JSON.stringify({ schema: 1, name: 'Old', ledger: [{ n: 0, score: 1 }] }));
 check('a profile saved before this change keeps its name and ledger', createProfile(() => oldStore).name() === 'Old' && createProfile(() => oldStore).ledger().length === 1 && !createProfile(() => oldStore).seen('ats'));
+
+// ---------- 14. glossary gaps, and drill feedback in plain words ----------
+const terms = glossary.map((g) => g.term.toLowerCase());
+const asked = ['recast', 'charter party', 'pro rata', 'master', 'stoppage', 'load rate', 'all time saved'];
+check(`the glossary has every term the playtest missed (${asked.join(', ')})`, asked.every((t) => terms.includes(t)), asked.filter((t) => !terms.includes(t)).join(', '));
+check('load rate is defined per weather working day', glossary.find((g) => g.term === 'Load rate').long === 'per weather working day');
+const atsEntry = glossary.find((g) => g.term === 'All time saved');
+check('all time saved has a worked example whose sum is right', /20 \+ 39 = 59 hrs/.test(atsEntry.example) && /working time saved pays on 20/.test(atsEntry.example));
+check('every glossary term is unique', new Set(terms).size === terms.length);
+check('wrong drill answers are headed in plain words', verdictLabel({ shapeOk: true }) === 'Your columns are right, but some rows are wrong' && !/shape/i.test(verdictLabel({ shapeOk: true }) + verdictLabel({ shapeOk: false })));
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

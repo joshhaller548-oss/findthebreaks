@@ -155,6 +155,8 @@
 .g-item dt { font: 700 1rem var(--sans); text-transform: uppercase; letter-spacing: 0.02em; }
 .g-long { display: block; font: 500 0.75rem var(--mono); text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: 0.1rem; }
 .g-item dd { margin: 0.3rem 0 0; color: var(--ink-2); }
+.g-example { display: block; margin-top: 0.35rem; padding-left: 0.6rem; border-left: 3px solid var(--accent); font-size: 0.9rem; }
+.g-example::before { content: 'Worked example. '; font-weight: 600; color: var(--ink); }
 
 .brief-cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; padding: 8px 32px 0; }
 .brief-cols h3 { font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0.8rem 0 0.6rem; }

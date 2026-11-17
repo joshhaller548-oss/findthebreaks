@@ -76,6 +76,12 @@ function mapColumns(U, ucols, E, ecols, transform = (x) => x) {
   });
 }
 
+// The headline over a wrong answer, in plain words. shapeOk means the
+// columns match the drill's; the rows are what is wrong.
+export const verdictLabel = (res) => (res.shapeOk
+  ? 'Your columns are right, but some rows are wrong'
+  : 'Your columns don’t match the ones the drill asks for');
+
 // Returns { verdict: 'correct' | 'wrong', shapeOk, code, ...detail }
 export function compare(user, expected) {
   // Labels such as demurrage and despatch are checked without regard to capitals

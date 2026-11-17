@@ -2,7 +2,7 @@
 // tables underneath. Shared by every task so they behave the same way.
 
 import { h, dataTable, clock } from './dom.mjs';
-import { compare, diagnose, fill, plural } from './check.mjs';
+import { compare, diagnose, fill, plural, verdictLabel } from './check.mjs';
 import { store } from './store.mjs';
 
 const MOBILE = '(max-width: 860px)';
@@ -264,7 +264,7 @@ export function mountTaskPage(cfg) {
     }
     const diag = diagnose(res, { drill, user: out, pitfalls, lang: lang.id, generic: lang.generic, counts });
     verdictEl.replaceChildren(h('div', { class: 'v v-wrong' },
-      h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, '✗'), res.shapeOk ? 'Right shape, wrong rows' : 'Wrong shape'),
+      h('p', { class: 'v-label' }, h('span', { class: 'v-mark', 'aria-hidden': 'true' }, '✗'), verdictLabel(res)),
       h('p', {}, diag.message),
       (out.notes || []).map((n) => h('p', { class: 'note' }, h('strong', {}, 'Note. '), n)),
     ));

@@ -103,7 +103,7 @@ function glossaryScreen() {
     h('p', { class: 'screen-lede' }, 'Every charter party uses them. Know them before you open the desk.'),
     h('dl', { class: 'glossary' }, glossary.map((g) => h('div', { class: 'g-item' },
       h('dt', {}, g.term, g.long ? h('span', { class: 'g-long' }, g.long) : null),
-      h('dd', {}, g.def)))),
+      h('dd', {}, g.def, g.example ? h('span', { class: 'g-example' }, g.example) : null)))),
   );
 }
 
