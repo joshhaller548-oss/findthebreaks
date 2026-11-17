@@ -7,6 +7,7 @@ import { h } from '../dom.mjs';
 import { createDay, ticketTitle, CALLS, STAR_RULES } from './run.mjs';
 import { HEAD, termsLines, modelNote, recapNotes } from './briefing.mjs';
 import { when, stamp, span, hm, hrs, owed, USD, N } from './format.mjs';
+import { gloss } from './gloss.mjs';
 import { harbour } from './harbour.mjs';
 import { profile } from './profile.mjs';
 
@@ -29,11 +30,12 @@ function starRules(s) {
 const vesselName = (item) => (item.training ? 'Training cargo' : item.fixture.vessel);
 
 // The vessel's name heads the strip only when several share the desk, but
-// the list is always labelled with it
+// the list is always labelled with it. Each term is underlined once.
 function termsStrip(f, name, showName) {
+  const seen = new Set();
   return h('ul', { class: 'terms-strip', 'aria-label': `Terms on ${name}` },
     showName ? h('li', { class: 'ts-vessel' }, name) : null,
-    termsLines(f).map((t) => h('li', {}, t)));
+    termsLines(f).map((t) => h('li', {}, gloss(t, seen))));
 }
 
 // Tips that pause the clock, on the training cargo only
@@ -197,7 +199,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     statementRows.append(h('li', { class: `st-line ${line.kind || ''}` },
       h('span', { class: 'st-when' }, multi ? h('span', { class: 'st-vessel' }, `${vesselName(l.item)} · `) : null, line.when),
       h('span', { class: 'st-hrs mono' }, line.hrs ?? ''),
-      h('span', { class: 'st-what' }, line.what),
+      h('span', { class: 'st-what' }, gloss(line.what)),
       h('span', { class: 'st-used mono' }, line.used ?? '')));
     statementRows.lastElementChild.scrollIntoView?.({ block: 'nearest' });
   }
@@ -219,13 +221,14 @@ export function deskScreen(desk, { onLeave } = {}) {
       tk.type === 'start' ? stamp(o.at) : o.label,
       h('span', { class: 'sub' }, tk.type === 'start' ? `${o.why} · key ${i + 1}` : `key ${i + 1}`))));
 
-  function ticketBody(tk, l) {
+  function ticketBody(tk, l, seen = new Set()) {
+    const g = (t) => gloss(t, seen);
     const f = l.item.fixture;
     const r = l.run;
     if (tk.type === 'time') {
       return [
         h('p', { class: 'ticket-when mono' }, `${span(tk.start, tk.end)} · ${hrs(tk.minutes)} hrs`),
-        h('p', { class: 'ticket-ask' }, 'Does this time count against laytime?'),
+        h('p', { class: 'ticket-ask' }, g('Does this time count against laytime?')),
         h('div', { class: 'ticket-calls' },
           h('button', { class: 'gbtn ink', type: 'button', onclick: () => call('counts') }, CALLS.counts, h('span', { class: 'sub' }, 'key C')),
           h('button', { class: 'gbtn accent', type: 'button', onclick: () => call('off') }, CALLS.off, h('span', { class: 'sub' }, 'key E'))),
@@ -234,28 +237,28 @@ export function deskScreen(desk, { onLeave } = {}) {
     if (tk.type === 'start') {
       return [
         h('dl', { class: 'sof' },
-          h('div', {}, h('dt', {}, 'NOR tendered'), h('dd', {}, stamp(r.nor))),
-          h('div', {}, h('dt', {}, 'Turn time'), h('dd', {}, `${f.turn_time_hrs} hrs`)),
-          h('div', {}, h('dt', {}, 'Loading commenced'), h('dd', {}, stamp(r.loadStart)))),
-        h('p', { class: 'ticket-ask' }, 'When does the laytime clock start?'),
+          h('div', {}, h('dt', {}, g('NOR tendered')), h('dd', {}, stamp(r.nor))),
+          h('div', {}, h('dt', {}, g('Turn time')), h('dd', {}, `${f.turn_time_hrs} hrs`)),
+          h('div', {}, h('dt', {}, g('Loading commenced')), h('dd', {}, stamp(r.loadStart)))),
+        h('p', { class: 'ticket-ask' }, g('When does the laytime clock start?')),
         optionButtons(tk),
       ];
     }
     if (tk.type === 'settle') {
       return [
         h('dl', { class: 'sof' },
-          h('div', {}, h('dt', {}, 'Laytime allowed'), h('dd', {}, `${hrs(r.allowed)} hrs`)),
-          h('div', {}, h('dt', {}, 'Laytime used'), h('dd', {}, `${hrs(r.used)} hrs`)),
-          h('div', {}, h('dt', {}, 'Demurrage rate'), h('dd', {}, `USD ${N.format(f.demurrage_rate_usd_per_day)} a day`)),
-          h('div', {}, h('dt', {}, 'Despatch'), h('dd', {}, `half rate, ${f.despatch_basis}`)),
+          h('div', {}, h('dt', {}, g('Laytime allowed')), h('dd', {}, `${hrs(r.allowed)} hrs`)),
+          h('div', {}, h('dt', {}, g('Laytime used')), h('dd', {}, `${hrs(r.used)} hrs`)),
+          h('div', {}, h('dt', {}, g('Demurrage rate')), h('dd', {}, `USD ${N.format(f.demurrage_rate_usd_per_day)} a day`)),
+          h('div', {}, h('dt', {}, g('Despatch')), h('dd', {}, `half rate, ${f.despatch_basis}`)),
           ...(tk.after ? [
-            h('div', {}, h('dt', {}, 'Laytime left at completion'), h('dd', {}, `${hrs(tk.after.left_min)} hrs`)),
-            h('div', {}, h('dt', {}, 'Excepted after completion'), h('dd', {},
+            h('div', {}, h('dt', {}, g('Laytime left at completion')), h('dd', {}, `${hrs(tk.after.left_min)} hrs`)),
+            h('div', {}, h('dt', {}, g('Excepted after completion')), h('dd', {},
               tk.after.windows.length
                 ? [...tk.after.windows.map((w) => h('span', { class: 'after-w' }, `${f.shex_basis} window ${span(w.start, w.end)}, ${hrs(w.minutes)} hrs`)), h('span', { class: 'after-w muted' }, `before laytime would have run out: ${hrs(tk.after.excepted_min)} hrs in all`)]
                 : 'none before laytime would have run out')),
           ] : [])),
-        h('p', { class: 'ticket-ask' }, 'What is owed, and to whom?'),
+        h('p', { class: 'ticket-ask' }, g('What is owed, and to whom?')),
         optionButtons(tk),
       ];
     }
@@ -264,10 +267,10 @@ export function deskScreen(desk, { onLeave } = {}) {
       h('table', { class: 'owner-table' },
         h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Owner'), h('th', {}, 'Yours'))),
         h('tbody', {},
-          h('tr', {}, h('th', {}, 'Laytime commenced'), h('td', {}, when(o.laytime_commenced)), h('td', {}, when(tk.yours.laytime_commenced))),
-          h('tr', {}, h('th', {}, 'Laytime used'), h('td', {}, `${o.laytime_used_hrs.toFixed(2)} hrs`), h('td', {}, `${hrs(tk.yours.used_min)} hrs`)),
+          h('tr', {}, h('th', {}, g('Laytime commenced')), h('td', {}, when(o.laytime_commenced)), h('td', {}, when(tk.yours.laytime_commenced))),
+          h('tr', {}, h('th', {}, g('Laytime used')), h('td', {}, `${o.laytime_used_hrs.toFixed(2)} hrs`), h('td', {}, `${hrs(tk.yours.used_min)} hrs`)),
           h('tr', {}, h('th', {}, 'Owed'), h('td', {}, owed(o.result, o.amount_usd)), h('td', {}, owed(tk.yours.result, tk.yours.amount_usd))))),
-      h('p', { class: 'ticket-ask' }, 'Do you sign the owner’s statement?'),
+      h('p', { class: 'ticket-ask' }, g('Do you sign the owner’s statement?')),
       h('div', { class: 'ticket-calls' },
         h('button', { class: 'gbtn ok', type: 'button', onclick: () => call('agree') }, CALLS.agree, h('span', { class: 'sub' }, 'key A')),
         h('button', { class: 'gbtn accent', type: 'button', onclick: () => call('dispute') }, CALLS.dispute, h('span', { class: 'sub' }, 'key D'))),
@@ -285,7 +288,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     if (!had || tip || work.contains(document.activeElement)) return;
     const again = fk && work.querySelector(`[data-fk="${fk}"]`);
     // With nothing to press, the panel itself holds focus for the next ticket
-    const target = (again && !again.disabled ? again : work.querySelector('button:not(:disabled), textarea, a[href]')) ?? work;
+    const target = (again && !again.disabled ? again : work.querySelector('button:not(:disabled):not(.gl), textarea, a[href]')) ?? work;
     target.focus({ preventScroll: true });
   }
   function paintWork() {
@@ -293,9 +296,9 @@ export function deskScreen(desk, { onLeave } = {}) {
       work.replaceChildren(h('div', { class: 'tip', role: 'dialog', 'aria-label': tip.title },
         h('p', { class: 'tip-tag' }, 'Coaching · clock paused'),
         h('h3', {}, tip.title),
-        h('p', {}, tip.text),
+        h('p', {}, gloss(tip.text)),
         h('button', { class: 'gbtn ink', type: 'button', onclick: closeTip }, 'Got it')));
-      work.querySelector('button').focus({ preventScroll: true });
+      work.querySelector('.tip .gbtn').focus({ preventScroll: true });
       return;
     }
     const l = day.active;
@@ -316,15 +319,17 @@ export function deskScreen(desk, { onLeave } = {}) {
     }
     const tk = l.run.open;
     const k = l.run.steps.indexOf(tk) + 1;
+    // A term is underlined once per ticket
+    const seen = new Set();
     work.replaceChildren(h('article', { class: `ticket t-${tk.type}`, 'aria-labelledby': 'tk-title' },
       multi ? h('p', { class: 'tk-vessel' }, vesselName(l.item)) : null,
       h('p', { class: 'ticket-no' }, `Ticket ${String(k).padStart(2, '0')} of ${String(l.run.steps.length).padStart(2, '0')} · ${tk.type === 'time' ? 'statement of facts' : tk.type === 'owner' ? 'owner’s laytime statement' : 'your call'}`),
-      h('h3', { id: 'tk-title' }, ticketTitle(tk, l.item.fixture)),
-      ...ticketBody(tk, l),
+      h('h3', { id: 'tk-title' }, gloss(ticketTitle(tk, l.item.fixture), seen)),
+      ...ticketBody(tk, l, seen),
       day.takenOver ? h('p', { class: 'taken' }, `${HEAD.name} has taken the desk and is calling this one.`) : null,
       feedback ? h('div', { class: 'coach', role: 'alert' },
         h('p', { class: 'coach-tag' }, `${HEAD.name} · not quite`),
-        h('p', {}, feedback),
+        h('p', {}, gloss(feedback)),
         day.takenOver ? null : h('p', { class: 'muted small' }, 'Call it again.')) : null));
     if (day.takenOver) scheduleHead();
   }
@@ -378,8 +383,8 @@ export function deskScreen(desk, { onLeave } = {}) {
     } else {
       parts.push(
         explainText.trim() ? h('blockquote', { class: 'yours' }, h('p', {}, explainText.trim())) : h('p', { class: 'muted' }, 'You left it blank.'),
-        h('div', { class: 'model-note' }, h('p', { class: 'coach-tag' }, 'Model note'), h('p', {}, modelNote(l.item))),
-        h('p', { class: 'ticket-ask' }, 'Did your sentence say the same thing?'),
+        h('div', { class: 'model-note' }, h('p', { class: 'coach-tag' }, 'Model note'), h('p', {}, gloss(modelNote(l.item)))),
+        h('p', { class: 'ticket-ask' }, gloss('Did your sentence say the same thing?')),
         h('div', { class: 'ticket-calls' },
           h('button', { class: 'gbtn ok', type: 'button', onclick: () => finishExplain(true) }, 'Yes, I had it'),
           h('button', { class: 'gbtn outline', type: 'button', onclick: () => finishExplain(false) }, 'Not quite')));
@@ -439,11 +444,11 @@ export function deskScreen(desk, { onLeave } = {}) {
           h('td', { class: p.difference_usd === 0 ? 'ok' : 'bad' }, `USD ${USD.format(Math.abs(p.difference_usd))}`),
           h('td', {}, `${p.rightFirstTime} of ${p.decisions}`)))))
       : h('dl', { class: 'sum-grid' },
-        h('div', {}, h('dt', {}, 'Your first calls'), h('dd', { class: 'mono' }, owed(one.yours.result, one.yours.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.yours.used_min)} hrs used`)),
-        h('div', {}, h('dt', {}, 'True statement'), h('dd', { class: 'mono' }, owed(one.correct.result, one.correct.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.correct.used_min)} hrs used`)),
-        h('div', { class: `diff ${diff === 0 ? 'zero' : 'off'}` }, h('dt', {}, 'Difference'), h('dd', { class: 'mono big' }, `USD ${USD.format(Math.abs(diff))}`), h('dd', {}, verdict)));
+        h('div', {}, h('dt', {}, gloss('Your first calls')), h('dd', { class: 'mono' }, owed(one.yours.result, one.yours.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.yours.used_min)} hrs used`)),
+        h('div', {}, h('dt', {}, gloss('True statement')), h('dd', { class: 'mono' }, owed(one.correct.result, one.correct.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.correct.used_min)} hrs used`)),
+        h('div', { class: `diff ${diff === 0 ? 'zero' : 'off'}` }, h('dt', {}, gloss('Difference')), h('dd', { class: 'mono big' }, `USD ${USD.format(Math.abs(diff))}`), h('dd', {}, verdict)));
     const notes = s.per.flatMap((p) => recapNotes(p, p.lane.item, p.lane.run.steps.find((t) => t.type === 'owner'), multi ? vesselName(p.lane.item) : null)
-      .map((x) => h('p', { class: x.kind === 'note' ? 'note' : null }, x.text)));
+      .map((x) => h('p', { class: x.kind === 'note' ? 'note' : null }, gloss(x.text))));
     const wrongs = s.per.flatMap((p) => p.wrong.map((tk) => h('li', {}, multi ? h('span', { class: 'st-vessel' }, `${vesselName(p.lane.item)} · `) : null, ...describe(tk, p.lane))));
     return h('article', { class: 'summary', 'aria-labelledby': 'sum-title' },
       ...head,

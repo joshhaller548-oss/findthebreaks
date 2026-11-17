@@ -451,8 +451,21 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.screenshot({ path: `${OUT}/17-desk-start-${tag}.png`, fullPage: true });
     await pickOption('when turn time runs out');
     expectThat(`desk ${tag}: the first time ticket arrives`, await playTo('.ticket.t-time'));
+    if (!(await page.$('.ticket h3'))) log(`desk ${tag} no ticket`, await page.$eval('.desk-work', (e) => e.innerText.replace(/\s+/g, ' ').slice(0, 200)));
     const t1 = await page.$eval('.ticket h3', (e) => e.textContent);
     expectThat(`desk ${tag}: the first time ticket is the rain (${t1})`, t1 === 'Rain stopped loading');
+    // Glossary terms on the ticket open in place, and close with Escape
+    const gl = await page.$('.ticket .gl');
+    expectThat(`desk ${tag}: the ticket underlines a glossary term`, Boolean(gl));
+    await gl.click();
+    const popText = await page.$eval('#gloss-pop', (e) => (e.hidden ? '' : e.innerText));
+    expectThat(`desk ${tag}: tapping a term shows its definition on the desk (${popText.slice(0, 40)})`, popText.length > 20 && (await page.evaluate(() => location.hash)) !== '#/glossary');
+    const popBox = await page.$eval('#gloss-pop', (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: innerWidth }; });
+    expectThat(`desk ${tag}: the definition fits the screen`, popBox.l >= 0 && popBox.r <= popBox.w);
+    expectThat(`desk ${tag}: the definition has no stray text`, !/\b(null|undefined)\b/.test(popText));
+    await page.screenshot({ path: `${OUT}/17-desk-gloss-${tag}.png`, fullPage: true });
+    await page.keyboard.press('Escape');
+    expectThat(`desk ${tag}: Escape closes the definition and returns focus to the term`, await page.$eval('#gloss-pop', (e) => e.hidden) && await page.evaluate(() => document.activeElement?.classList.contains('gl')));
     await page.click('.ticket-calls .gbtn.ink');
     await page.waitForSelector('.coach');
     log(`desk coach ${tag}`, await page.$eval('.coach', (e) => e.innerText.replace(/\s+/g, ' ')));

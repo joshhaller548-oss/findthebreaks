@@ -426,3 +426,43 @@
 @keyframes drift { to { transform: translateX(-40px); } }
 @keyframes bob { to { transform: translateY(3px); } }
 @keyframes pour { to { stroke-dashoffset: -9; } }
+
+/* ---------- glossary terms in place ---------- */
+
+.gl {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+.gl:hover, .gl[aria-expanded="true"] { text-decoration-style: solid; }
+.gl:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.gloss-pop {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-left: 6px solid var(--accent);
+  padding: 0.6rem 0.8rem 0.7rem;
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--ink) 25%, transparent);
+  font: 400 0.9rem/1.4 var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.gloss-pop[hidden] { display: none; }
+.gloss-pop p { margin: 0 0 0.35rem; }
+.gloss-pop p:last-child { margin-bottom: 0; }
+.gp-term { font: 700 0.95rem var(--sans); text-transform: uppercase; letter-spacing: 0.02em; }
+.gp-long { font: 500 0.75rem var(--mono); text-transform: none; color: var(--muted); }
+.gp-example { font-size: 0.85rem; color: var(--ink-2); border-left: 3px solid var(--rule-strong); padding-left: 0.5rem; }

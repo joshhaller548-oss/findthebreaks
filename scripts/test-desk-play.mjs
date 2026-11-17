@@ -2,12 +2,15 @@
 // the playtest report, each checking the strings and numbers the player
 // sees, built from the same data and calc.mjs the desk uses.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
 import { createProfile } from '../public/js/desk/profile.mjs';
 import { glossary } from '../public/js/desk/glossary.mjs';
+import { glossSegments } from '../public/js/desk/gloss.mjs';
 import { verdictLabel } from '../public/js/check.mjs';
 import { afterCompletion, POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
@@ -38,6 +41,12 @@ const all = data.tables.fixtures.map((f, i) => {
   return { n: i + 1, training: false, label: `Fixture ${i + 1}`, fixture: f, stoppages: st, result: calculate(f, st), events: deductions(f, st), owner: owners[f.voyage_id], ownerError: errs[f.voyage_id] ?? null };
 });
 const everyone = [training, ...all];
+
+// ---------- every browser module parses (app.mjs is never imported here) ----------
+const jsRoot = fileURLToPath(new URL('js/', root));
+const modules = readdirSync(jsRoot, { recursive: true }).filter((f) => f.endsWith('.mjs'));
+const broken = modules.filter((f) => spawnSync(process.execPath, ['--check', `${jsRoot}${f}`]).status !== 0);
+check(`every browser module parses (${modules.length})`, broken.length === 0, broken.join(', '));
 
 // ---------- 1. the desk header ----------
 check('clock hours are zero-padded (02:00, 00:30, 120:00)', hm(120) === '02:00' && hm(30) === '00:30' && hm(7200) === '120:00' && hm(-90) === '01:30');
@@ -254,6 +263,20 @@ const atsEntry = glossary.find((g) => g.term === 'All time saved');
 check('all time saved has a worked example whose sum is right', /20 \+ 39 = 59 hrs/.test(atsEntry.example) && /working time saved pays on 20/.test(atsEntry.example));
 check('every glossary term is unique', new Set(terms).size === terms.length);
 check('wrong drill answers are headed in plain words', verdictLabel({ shapeOk: true }) === 'Your columns are right, but some rows are wrong' && !/shape/i.test(verdictLabel({ shapeOk: true }) + verdictLabel({ shapeOk: false })));
+
+// ---------- 15. glossary terms underlined in place ----------
+const termsIn = (text, seen) => glossSegments(text, seen).filter((x) => x.entry).map((x) => x.entry.term);
+check('a ticket title finds SHEX EIU whole, not a shorter overlap', termsIn('SHEX EIU window, loading carried on').join() === 'SHEX EIU');
+check('NOR is found in capitals only', termsIn('NOR tendered').join() === 'NOR' && termsIn('neither this nor that').length === 0);
+check('plural forms find their entry', termsIn('Weather working days: rain or swell').join() === 'Weather working day' && termsIn('two stoppages').join() === 'Stoppage');
+check('a statement line with a recast finds it', termsIn('Rain stopped loading · Excepted, recast').includes('Recast'));
+const shared = new Set();
+check('a term is underlined once across a screen', termsIn('Despatch at half rate', shared).join() === 'Despatch' && termsIn('Despatch on all time saved', shared).join() === 'All time saved');
+check('the text is kept whole around the terms', glossSegments('When does the laytime clock start?').map((x) => x.text).join('') === 'When does the laytime clock start?');
+check('every glossary entry can be found by its own name', glossary.every((g) => termsIn(`About ${g.term} here`).includes(g.term)));
+const onDesk = [...everyone.flatMap((it) => [...termsLines(it.fixture), ...briefing(it).lesson, briefing(it).clause.text, ...briefing(it).targets]), ...days.flatMap((d) => [d.lede, ...d.steps])];
+const covered = new Set(onDesk.flatMap((t) => termsIn(t)));
+check(`briefings and terms strips underline most of the glossary (${covered.size} of ${glossary.length})`, covered.size >= glossary.length - 4, glossary.map((g) => g.term).filter((t) => !covered.has(t)).join(', '));
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

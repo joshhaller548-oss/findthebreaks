@@ -10,6 +10,7 @@ import { loadFixtures } from './fixtures.mjs';
 import { briefing, dayBriefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
 import { deskScreen } from './desk-screen.mjs';
+import { gloss, installGloss } from './gloss.mjs';
 import { DAYS, planDay } from './run.mjs';
 
 // Every cargo is playable: the training cargo and the twelve fixtures
@@ -153,28 +154,30 @@ function briefingScreen(n) {
   if (!item) return notFound();
   const b = briefing(item);
   const initials = HEAD.name.split(' ').map((w) => w[0]).join('');
+  // Each glossary term is underlined at its first mention on the screen
+  const seen = new Set();
   return h('section', { class: 'screen briefing-screen', 'aria-labelledby': 'b-title' },
     backBar(`Morning briefing · ${item.label}`),
     h('h2', { id: 'b-title' }, item.training ? 'Training cargo' : `${item.fixture.vessel}`),
     h('div', { class: 'brief-cols' },
       h('div', { class: 'brief-lesson' },
         h('h3', {}, item.training ? 'How the clock works' : 'The clause to read first'),
-        h('ol', { class: 'lesson' }, b.lesson.map((l) => h('li', {}, l))),
+        h('ol', { class: 'lesson' }, b.lesson.map((l) => h('li', {}, gloss(l, seen)))),
         h('div', { class: 'clause' },
-          h('p', { class: 'clause-tag' }, 'The clause that matters'),
-          h('h4', {}, b.clause.title),
-          h('p', {}, b.clause.text)),
+          h('p', { class: 'clause-tag' }, 'The clause to read first'),
+          h('h4', {}, gloss(b.clause.title, seen)),
+          h('p', {}, gloss(b.clause.text, seen))),
       ),
       h('div', { class: 'brief-terms' },
         h('h3', {}, 'The fixture'),
-        h('dl', { class: 'fx-terms' }, b.terms.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v)))),
+        h('dl', { class: 'fx-terms' }, b.terms.map(([k, v]) => h('div', {}, h('dt', {}, gloss(k, seen)), h('dd', {}, gloss(v, seen))))),
         h('h3', {}, 'Your targets'),
-        h('ul', { class: 'targets' }, b.targets.map((t) => h('li', {}, t))),
+        h('ul', { class: 'targets' }, b.targets.map((t) => h('li', {}, gloss(t, seen)))),
       ),
     ),
     h('figure', { class: 'quote' },
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, initials),
-      h('blockquote', {}, h('p', {}, b.clause.quote)),
+      h('blockquote', {}, h('p', {}, gloss(b.clause.quote, seen))),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
     playable(item.n)
       ? h('div', { class: 'brief-actions' },
@@ -233,19 +236,20 @@ function dayDeskView(k) {
 function dayBriefingScreen(k) {
   if (!DAYS[k - 1]) return notFound();
   const b = dayBriefing(dayLanes(k));
+  const seen = new Set();
   return h('section', { class: 'screen briefing-screen', 'aria-labelledby': 'd-title' },
     backBar(`Morning briefing \u00B7 Day ${k}`),
     h('h2', { id: 'd-title' }, `Day ${k}: three vessels`),
-    h('p', { class: 'screen-lede' }, b.lede),
-    h('ul', { class: 'day-rules' }, b.steps.map((t) => h('li', {}, t))),
+    h('p', { class: 'screen-lede' }, gloss(b.lede, seen)),
+    h('ul', { class: 'day-rules' }, b.steps.map((t) => h('li', {}, gloss(t, seen)))),
     h('div', { class: 'day-ships' }, b.arrivals.map((a) => h('article', { class: 'day-ship' },
       h('p', { class: 'clause-tag' }, a.tag),
       h('h3', {}, a.item.fixture.vessel),
-      h('dl', { class: 'fx-terms' }, a.brief.terms.filter(([key]) => ['Load rate', 'Laytime allowed', 'Exceptions', 'Waiting for berth', 'Despatch'].includes(key)).map(([key, v]) => h('div', {}, h('dt', {}, key), h('dd', {}, v)))),
-      h('div', { class: 'clause' }, h('p', { class: 'clause-tag' }, 'The clause to read first'), h('h4', {}, a.brief.clause.title), h('p', {}, a.brief.clause.text))))),
+      h('dl', { class: 'fx-terms' }, a.brief.terms.filter(([key]) => ['Load rate', 'Laytime allowed', 'Exceptions', 'Waiting for berth', 'Despatch'].includes(key)).map(([key, v]) => h('div', {}, h('dt', {}, gloss(key, seen)), h('dd', {}, gloss(v, seen))))),
+      h('div', { class: 'clause' }, h('p', { class: 'clause-tag' }, 'The clause to read first'), h('h4', {}, gloss(a.brief.clause.title, seen)), h('p', {}, gloss(a.brief.clause.text, seen)))))),
     h('figure', { class: 'quote' },
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, HEAD.name.split(' ').map((w) => w[0]).join('')),
-      h('blockquote', {}, h('p', {}, b.quote)),
+      h('blockquote', {}, h('p', {}, gloss(b.quote, seen))),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
     h('div', { class: 'brief-actions' },
       btn('big ink', { href: `#/daydesk/${k}` }, 'Open the desk'),
@@ -272,6 +276,7 @@ function render() {
 
 try {
   items = await loadFixtures();
+  installGloss();
   addEventListener('hashchange', render);
   render();
   if (!profile.name()) askName();
