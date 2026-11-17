@@ -115,7 +115,7 @@ const offOf = (e) => e.off_usd ?? Math.abs(e.difference_usd);
 function ledgerScreen() {
   const b = bests();
   const USD = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const star = (n) => h('span', { class: 'stars', 'aria-label': `${n} of 3 stars` }, '\u2605'.repeat(n), h('span', { class: 'off' }, '\u2605'.repeat(3 - n)));
+  const star = (n) => h('span', { class: 'stars', role: 'img', 'aria-label': `${n} of 3 stars` }, '\u2605'.repeat(n), h('span', { class: 'off' }, '\u2605'.repeat(3 - n)));
   const total = [...b.values()].reduce((n, e) => n + e.score, 0);
   return h('section', { class: 'screen ledger-screen', 'aria-labelledby': 'l-title' },
     backBar('Ledger'),

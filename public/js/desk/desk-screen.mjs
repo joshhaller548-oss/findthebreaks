@@ -91,14 +91,19 @@ export function deskScreen(desk, { onLeave } = {}) {
   const clockLabel = h('span', { class: 'sb-label' }, multi ? 'Desk clock' : 'Clock');
   const clockEl = h('span', { class: 'sb-value mono' });
   const scoreEl = h('span', { class: 'sb-value mono' });
-  const strikesEl = h('span', { class: 'strikes', 'aria-label': 'Wrong calls' });
+  const strikesEl = h('span', { class: 'strikes', role: 'img', 'aria-label': 'Strikes' });
   const pauseBtn = h('button', { class: 'gbtn small outline', type: 'button', onclick: () => setPaused(!paused) }, 'Pause');
   const speedBtn = h('button', { class: 'gbtn small outline', type: 'button', 'aria-pressed': 'false', onclick: () => {
     speed = speed === 'normal' ? 'fast' : 'normal';
     speedBtn.setAttribute('aria-pressed', String(speed === 'fast'));
     speedBtn.textContent = speed === 'fast' ? 'Speed x4' : 'Speed x1';
   } }, 'Speed x1');
+  const skip = h('button', { class: 'skip', type: 'button', onclick: () => {
+    const target = work.querySelector('button:not(:disabled):not(.gl), textarea, a[href]') ?? work;
+    target.focus();
+  } }, 'Skip to the ticket');
   const bar = h('header', { class: 'desk-bar' },
+    skip,
     h('div', { class: 'sb vessel' }, h('span', { class: 'sb-label' }, desk.label), h('span', { class: 'sb-value' }, desk.title)),
     h('div', { class: 'sb' }, clockLabel, clockEl),
     h('div', { class: 'sb' }, h('span', { class: 'sb-label' }, multi ? 'Day score' : 'Score'), scoreEl, strikesEl),
@@ -121,7 +126,7 @@ export function deskScreen(desk, { onLeave } = {}) {
       h('div', { class: 'vc-row' }, c.moneyLabel, c.money));
     return c;
   });
-  const fleet = h('div', { class: `fleet n${day.lanes.length}`, 'aria-label': 'Vessels on the desk' }, cards.map((c) => c.el));
+  const fleet = h('div', { class: `fleet n${day.lanes.length}`, role: 'group', 'aria-label': 'Vessels on the desk' }, cards.map((c) => c.el));
 
   const harbourSlot = h('div', { class: 'harbour-slot' });
   const termsSlot = h('div', { class: 'terms-slot' });
@@ -165,7 +170,7 @@ export function deskScreen(desk, { onLeave } = {}) {
         strikesEl.setAttribute('aria-label', `${day.strikes} of ${day.strikesAllowed} strikes used`);
       } else {
         strikesEl.replaceChildren(h('span', { class: 'free' }, 'Training: no strike limit'));
-        strikesEl.removeAttribute('aria-label');
+        strikesEl.setAttribute('aria-label', 'Training: no strike limit');
       }
     }
     easing = false;
@@ -249,7 +254,7 @@ export function deskScreen(desk, { onLeave } = {}) {
   }
 
   const optionButtons = (tk) => h('div', { class: 'ticket-options' }, tk.options.map((o, i) =>
-    h('button', { class: 'gbtn outline option', type: 'button', onclick: () => call(o.id) },
+    h('button', { class: 'gbtn outline option', type: 'button', 'aria-keyshortcuts': String(i + 1), 'aria-label': `${tk.type === 'start' ? `${stamp(o.at)}, ${o.why}` : o.label}, key ${i + 1}`, onclick: () => call(o.id) },
       tk.type === 'start' ? stamp(o.at) : o.label,
       h('span', { class: 'sub' }, tk.type === 'start' ? `${o.why} · key ${i + 1}` : `key ${i + 1}`))));
 
@@ -262,8 +267,8 @@ export function deskScreen(desk, { onLeave } = {}) {
         h('p', { class: 'ticket-when mono' }, `${span(tk.start, tk.end)} · ${hrs(tk.minutes)} hrs`),
         h('p', { class: 'ticket-ask' }, g('Does this time count against laytime?')),
         h('div', { class: 'ticket-calls' },
-          h('button', { class: 'gbtn ink', type: 'button', onclick: () => call('counts') }, CALLS.counts, h('span', { class: 'sub' }, 'key C')),
-          h('button', { class: 'gbtn accent', type: 'button', onclick: () => call('off') }, CALLS.off, h('span', { class: 'sub' }, 'key E'))),
+          h('button', { class: 'gbtn ink', type: 'button', 'aria-keyshortcuts': 'C', onclick: () => call('counts') }, CALLS.counts, h('span', { class: 'sub' }, h('span', { class: 'sr-only' }, ', '), 'key C')),
+          h('button', { class: 'gbtn accent', type: 'button', 'aria-keyshortcuts': 'E', onclick: () => call('off') }, CALLS.off, h('span', { class: 'sub' }, h('span', { class: 'sr-only' }, ', '), 'key E'))),
       ];
     }
     if (tk.type === 'start') {
@@ -304,8 +309,8 @@ export function deskScreen(desk, { onLeave } = {}) {
           h('tr', {}, h('th', {}, 'Owed'), h('td', {}, owed(o.result, o.amount_usd)), h('td', {}, owed(tk.yours.result, tk.yours.amount_usd))))),
       h('p', { class: 'ticket-ask' }, g('Do you sign the owner’s statement?')),
       h('div', { class: 'ticket-calls' },
-        h('button', { class: 'gbtn ok', type: 'button', onclick: () => call('agree') }, CALLS.agree, h('span', { class: 'sub' }, 'key A')),
-        h('button', { class: 'gbtn accent', type: 'button', onclick: () => call('dispute') }, CALLS.dispute, h('span', { class: 'sub' }, 'key D'))),
+        h('button', { class: 'gbtn ok', type: 'button', 'aria-keyshortcuts': 'A', onclick: () => call('agree') }, CALLS.agree, h('span', { class: 'sub' }, h('span', { class: 'sr-only' }, ', '), 'key A')),
+        h('button', { class: 'gbtn accent', type: 'button', 'aria-keyshortcuts': 'D', onclick: () => call('dispute') }, CALLS.dispute, h('span', { class: 'sub' }, h('span', { class: 'sr-only' }, ', '), 'key D'))),
     ];
   }
 

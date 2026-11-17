@@ -193,6 +193,10 @@
 .tag-chip { align-self: flex-start; font: 600 0.68rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); padding: 0.15rem 0.45rem; margin-bottom: 0.35rem; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
+.desk-bar { position: relative; }
+/* Off screen until focused, then over the status bar */
+.skip { position: absolute; left: 8px; top: 8px; z-index: 5; transform: translateY(-200%); font: 600 0.8rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 0.5rem 0.8rem; background: var(--accent); color: var(--accent-ink); border: 2px solid var(--bar-ink); cursor: pointer; }
+.skip:focus { transform: none; outline: 3px solid var(--focus); outline-offset: 2px; }
 .desk-bar { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; border-bottom: 1px solid var(--rule-strong); background: var(--bar-bg); color: var(--bar-ink); }
 .sb { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.9rem; border-right: 1px solid var(--bar-rule); min-width: 0; }
 .sb:last-child { border-right: 0; }

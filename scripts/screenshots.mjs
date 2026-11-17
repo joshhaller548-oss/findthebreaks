@@ -70,6 +70,33 @@ async function noStrayText(page) {
   const hit = /\b(null|undefined|NaN)\b|\[object Object\]/.exec(text);
   if (hit) problems.push(`stray "${hit[0]}" on the page near: ${text.slice(Math.max(0, hit.index - 60), hit.index + 20).replace(/\s+/g, ' ')}`);
 }
+// Accessibility: anything that looks clickable is a real control, every
+// control has a name, aria-label sits only where it is read, no positive
+// tabindex, and no label says null
+async function a11y(page, label) {
+  const found = await page.evaluate(() => {
+    const out = [];
+    const real = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [role="tab"], [role="radio"]';
+    const desc = (e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ').join('.')} "${(e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`;
+    for (const e of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(e);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      if (cs.cursor === 'pointer' && !e.closest(real)) out.push(`looks clickable but is not a control: ${desc(e)}`);
+      if (e.hasAttribute('aria-label') && !e.getAttribute('role') && !e.matches('a, button, input, select, textarea, section, nav, aside, main, header, footer, form, dialog, ul, ol, dl, table, h1, h2, h3, h4, h5, h6, [tabindex]')) out.push(`aria-label that is not read: ${desc(e)}`);
+      if (/\b(null|undefined)\b/.test(e.getAttribute('aria-label') || '')) out.push(`aria-label "${e.getAttribute('aria-label')}"`);
+      if (Number(e.getAttribute('tabindex')) > 0) out.push(`positive tabindex: ${desc(e)}`);
+    }
+    return out;
+  });
+  const snap = await page.accessibility.snapshot({ interestingOnly: true });
+  const walk = (n) => {
+    if (['button', 'link', 'radio', 'tab', 'checkbox'].includes(n.role) && !String(n.name || '').trim()) found.push(`${n.role} with no name`);
+    (n.children || []).forEach(walk);
+  };
+  if (snap) walk(snap);
+  for (const f of found) problems.push(`a11y ${label}: ${f}`);
+}
+
 async function go(page, drill, lang = 'excel', task = 'reconciliation') {
   await page.goto(`${BASE}/${task}#drill-${drill}`, { waitUntil: 'networkidle0' });
   await ready(page);
@@ -424,12 +451,14 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
   await page.mouse.move(2, 2);
   await new Promise((r) => setTimeout(r, 1700));
   expectThat(`desk ${tag}: the title greets the name`, (await page.$eval('.greet', (e) => e.textContent)).includes('Tester'));
+  await a11y(page, `desk title ${tag}`);
   await page.screenshot({ path: `${OUT}/16-desk-title-${tag}.png`, fullPage: true });
   for (const [hash, name, sel] of [['#/glossary', 'glossary', '.g-item'], ['#/briefing/0', 'briefing', '.fx-terms'], ['#/ledger', 'ledger', '.empty']]) {
     await page.evaluate((x) => { location.hash = x; }, hash);
     await page.waitForSelector(sel);
     await new Promise((r) => setTimeout(r, 350));
     await noStrayText(page);
+    await a11y(page, `desk ${name} ${tag}`);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expectThat(`desk ${tag} ${name}: no horizontal scroll`, overflow <= 0);
     if (width === 1360) await page.screenshot({ path: `${OUT}/16-desk-${name}-${tag}.png`, fullPage: true });
@@ -459,6 +488,13 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
       throw new Error(`no option with ${text}`);
     };
     expectThat(`desk ${tag}: the start ticket opens at NOR`, await playTo('.ticket.t-start'));
+    await a11y(page, `desk ticket ${tag}`);
+    // The first Tab stop on the desk skips to the ticket
+    await page.evaluate(() => { document.activeElement?.blur(); });
+    await page.focus('.desk-bar .skip');
+    await page.keyboard.press('Enter');
+    const landed = await page.evaluate(() => document.activeElement?.closest('.ticket-options') !== null && document.activeElement?.tagName === 'BUTTON');
+    expectThat(`desk ${tag}: Skip to the ticket lands on the ticket's first call`, landed);
     // With a ticket open the clock is stopped, and so is the page: no
     // layout, no frame loop, the harbour still
     const m0 = await page.metrics();
@@ -496,6 +532,7 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.screenshot({ path: `${OUT}/17-desk-settle-${tag}.png`, fullPage: true });
     await pickOption('Despatch USD 1,041.67');
     expectThat(`desk ${tag}: the recap card shows`, await playTo('.summary'));
+    await a11y(page, `desk summary ${tag}`);
     const sum = await page.$eval('.summary', (e) => e.innerText.replace(/\s+/g, ' '));
     log(`desk summary ${tag}`, sum.slice(0, 300));
     expectThat(`desk ${tag}: the recap prices the wrong rain call against the true despatch`, sum.includes('Demurrage USD 18,750.00') && sum.includes('Despatch USD 1,041.67') && sum.includes('USD 19,791.67') && sum.includes('Right first time: 3 of 4'));
@@ -678,6 +715,7 @@ for (const [path, name, status] of [['/', 'landing', 200], ['/about', 'about', 2
     // A repeat visit may get 304 from a host that allows caching, as Vercel does
     expectThat(`${path} answers ${status}`, res.status() === status || (status === 200 && res.status() === 304));
     await noStrayText(page);
+    await a11y(page, `${path} ${width}`);
     // Let the landing animations finish before the screenshot
     if (path === '/') await new Promise((r) => setTimeout(r, 1800));
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
