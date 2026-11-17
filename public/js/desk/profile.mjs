@@ -8,7 +8,7 @@ const SCHEMA = 1;
 export const NAME_MAX = 16;
 const NAME_OK = /^[\p{L}\p{N} .'_-]+$/u;
 
-const empty = () => ({ schema: SCHEMA, name: '', ledger: [] });
+const empty = () => ({ schema: SCHEMA, name: '', ledger: [], seen: [] });
 
 export function cleanName(raw) {
   const name = String(raw ?? '').replace(/\s+/g, ' ').trim();
@@ -46,6 +46,12 @@ export function createProfile(getStorage) {
       return c;
     },
     ledger: () => read().ledger,
+    // One-time explanations already shown in this browser
+    seen: (key) => read().seen.includes(key),
+    markSeen(key) {
+      const s = read();
+      if (!s.seen.includes(key)) write({ ...s, seen: [...s.seen, key] });
+    },
     // One entry per settled run; the ledger screen sorts and picks bests
     record(entry) {
       const s = read();

@@ -43,6 +43,12 @@ const TIPS = {
   time: { title: 'Read the terms first', text: 'Each ticket is one entry from the statement of facts. Check it against the terms strip, then call it. Keys: C counts, E excepted.' },
   settle: { title: 'Loading is complete', text: 'Now settle it. Under laytime is despatch at half the demurrage rate; over is demurrage at the full rate. Mind the despatch basis.' },
 };
+// Shown once in this browser, the first time a settle ticket is on all
+// time saved. The numbers are an example, not this vessel's.
+const ATS_TIP = {
+  title: 'All time saved or working time saved',
+  text: 'Say laytime has 20 hrs left when loading completes, and a 39 hr weekend window (excepted time) falls before laytime would run out. Working time saved pays despatch on the laytime saved: 20 hrs. All time saved pays on all the time until laytime would have run out: 20 + 39 = 59 hrs. The settle ticket lists the excepted time after completion. Count it only on all time saved.',
+};
 
 // desk: { key, title, label, items, next } where key is the ledger key,
 // items the vessels, next the hash for the Next button
@@ -241,7 +247,14 @@ export function deskScreen(desk, { onLeave } = {}) {
           h('div', {}, h('dt', {}, 'Laytime allowed'), h('dd', {}, `${hrs(r.allowed)} hrs`)),
           h('div', {}, h('dt', {}, 'Laytime used'), h('dd', {}, `${hrs(r.used)} hrs`)),
           h('div', {}, h('dt', {}, 'Demurrage rate'), h('dd', {}, `USD ${N.format(f.demurrage_rate_usd_per_day)} a day`)),
-          h('div', {}, h('dt', {}, 'Despatch'), h('dd', {}, `half rate, ${f.despatch_basis}`))),
+          h('div', {}, h('dt', {}, 'Despatch'), h('dd', {}, `half rate, ${f.despatch_basis}`)),
+          ...(tk.after ? [
+            h('div', {}, h('dt', {}, 'Laytime left at completion'), h('dd', {}, `${hrs(tk.after.left_min)} hrs`)),
+            h('div', {}, h('dt', {}, 'Excepted after completion'), h('dd', {},
+              tk.after.windows.length
+                ? [...tk.after.windows.map((w) => h('span', { class: 'after-w' }, `${f.shex_basis} window ${span(w.start, w.end)}, ${hrs(w.minutes)} hrs`)), h('span', { class: 'after-w muted' }, `before laytime would have run out: ${hrs(tk.after.excepted_min)} hrs in all`)]
+                : 'none before laytime would have run out')),
+          ] : [])),
         h('p', { class: 'ticket-ask' }, 'What is owed, and to whom?'),
         optionButtons(tk),
       ];
@@ -464,7 +477,17 @@ export function deskScreen(desk, { onLeave } = {}) {
     last = performance.now();
     drawStatus();
   }
-  const tipFor = (l) => (l?.run.open ? showTip(l.run.open.type === 'time' ? 'time' : l.run.open.type) : false);
+  function tipFor(l) {
+    const tk = l?.run.open;
+    if (!tk) return false;
+    if (tk.type === 'settle' && l.item.fixture.despatch_basis === 'all time saved' && !profile.seen('ats')) {
+      profile.markSeen('ats');
+      tip = ATS_TIP;
+      drawWork();
+      return true;
+    }
+    return showTip(tk.type === 'time' ? 'time' : tk.type);
+  }
   function afterClose(l) {
     feedback = null;
     const ln = l.run.lines[l.run.lines.length - 1];

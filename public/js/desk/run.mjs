@@ -10,7 +10,7 @@
 // The player's first calls are priced by calculate() with those calls as
 // the excepted periods and the commencement, so the same rules apply.
 
-import { calculate, deductions, toMin, fromMin, clip, union } from '../laytime/calc.mjs';
+import { calculate, deductions, toMin, fromMin, clip, union, windowInstances, length } from '../laytime/calc.mjs';
 
 const REASONS = {
   rain: 'Rain stopped loading',
@@ -147,7 +147,25 @@ export function settleTicket(item) {
     return !seen.has(k) && seen.add(k);
   }).map((o, i) => ({ id: `m${i}`, ...o, label: money(o.result, o.amount) }));
   const answer = options[0].id;
-  return { type: 'settle', options: options.sort((a, b) => a.amount - b.amount || a.result.localeCompare(b.result)), answer };
+  return { type: 'settle', options: options.sort((a, b) => a.amount - b.amount || a.result.localeCompare(b.result)), answer, after: afterCompletion(item) };
+}
+
+// What the settle ticket needs to price despatch on either basis: laytime
+// left at completion, and the SHEX windows between completion and the
+// moment laytime would have run out (calc.mjs's laytime_expiry). Working
+// time saved pays on the first; all time saved on both. Null when there is
+// no despatch to price.
+export function afterCompletion(item) {
+  const { fixture: f, result: r } = item;
+  if (r.result !== 'despatch') return null;
+  const done = toMin(f.loading_completed);
+  const expiry = toMin(r.laytime_expiry);
+  const windows = f.shex_basis === 'SHINC' ? [] : clip(windowInstances(f.shex_window, done, expiry), [done, expiry]);
+  return {
+    left_min: r.allowed_min - r.used_min,
+    windows: windows.map(([a, b]) => ({ start: a, end: b, minutes: b - a })),
+    excepted_min: length(windows),
+  };
 }
 
 // The owner's statement against the true one. Disputed only where they differ.

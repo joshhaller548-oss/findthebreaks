@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
-import { POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
+import { createProfile } from '../public/js/desk/profile.mjs';
+import { afterCompletion, POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
 
@@ -222,6 +223,25 @@ check('a wrong pick is coached, costs no strike, and can be tried again for no p
   return !a.right && a.linesRight && !a.hoursRight && /less/.test(a.message) && !b.right && !b.linesRight && c.right && c.gained === 0 && run.strikes === 0 && run.explaining;
 }));
 check('the hours coaching names both figures to subtract', (() => { const it = disputed[0]; const run = toDispute(it); const m = pin(run, right(it)[0], ownerTicket(it).hours.find((x) => x.id !== right(it)[1]).id).message; return m.includes(it.owner.laytime_used_hrs.toFixed(2)) && m.includes((it.result.used_min / 60).toFixed(2)); })());
+
+// ---------- 13. the settle ticket carries what all time saved needs ----------
+const despatched = everyone.filter((it) => it.result.result === 'despatch');
+const ats = despatched.filter((it) => it.fixture.despatch_basis === 'all time saved');
+const wts = despatched.filter((it) => it.fixture.despatch_basis === 'working time saved');
+check(`on all time saved, laytime left plus the excepted time shown equals calc.mjs's time saved (${ats.map((it) => it.label).join(', ')})`, ats.length >= 2 && ats.every((it) => { const a = afterCompletion(it); return a.left_min + a.excepted_min === it.result.time_saved_min; }));
+check(`on working time saved, laytime left alone equals time saved (${wts.length} cargoes)`, wts.length >= 2 && wts.every((it) => afterCompletion(it).left_min === it.result.time_saved_min));
+const f4 = settleTicket(all[3]);
+check(`Fixture 4's settle ticket shows the 39 hrs after completion (${f4.after?.windows.map((w) => span(w.start, w.end)).join(', ')})`, f4.after?.excepted_min === 39 * 60 && f4.after.windows.length === 1 && span(f4.after.windows[0].start, f4.after.windows[0].end) === 'Sat 1 Aug, 17:00 to Mon 3 Aug, 08:00');
+check('with that data, Fixture 4 prices from the ticket alone: (left + 39 hrs) at half rate', Math.round((f4.after.left_min + f4.after.excepted_min) / 1440 * all[3].fixture.demurrage_rate_usd_per_day / 2 * 100) / 100 === all[3].result.amount_usd);
+check('demurrage cargoes carry no despatch data', everyone.filter((it) => it.result.result !== 'despatch').every((it) => afterCompletion(it) === null && settleTicket(it).after === null));
+
+const mem = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; };
+const profStore = mem();
+const prof = createProfile(() => profStore);
+check('the all time saved explanation is marked seen once, and stays seen', !prof.seen('ats') && (prof.markSeen('ats'), prof.markSeen('ats'), prof.seen('ats')));
+const oldStore = mem();
+oldStore.setItem('findthebreaks:desk', JSON.stringify({ schema: 1, name: 'Old', ledger: [{ n: 0, score: 1 }] }));
+check('a profile saved before this change keeps its name and ledger', createProfile(() => oldStore).name() === 'Old' && createProfile(() => oldStore).ledger().length === 1 && !createProfile(() => oldStore).seen('ats'));
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

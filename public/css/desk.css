@@ -267,6 +267,7 @@
 .sof > div { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: 0.8rem; padding: 0.3rem 0; border-bottom: 1px solid var(--rule); }
 .sof dt { color: var(--muted); }
 .sof dd { margin: 0; }
+.after-w { display: block; }
 .ticket-options { display: grid; gap: 8px; }
 .gbtn.option { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 1rem; text-transform: none; letter-spacing: 0; font: 600 1rem var(--mono); border-width: 2px; }
 .gbtn.option .sub { text-align: right; }
