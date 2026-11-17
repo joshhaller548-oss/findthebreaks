@@ -10,7 +10,7 @@ import { loadFixtures } from './fixtures.mjs';
 import { briefing, dayBriefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
 import { deskScreen } from './desk-screen.mjs';
-import { DAYS, ARRIVAL_GAP } from './run.mjs';
+import { DAYS, planDay } from './run.mjs';
 
 // Every cargo is playable: the training cargo and the twelve fixtures
 const playable = (n) => items.some((it) => it.n === n);
@@ -28,9 +28,9 @@ const backBar = (label) => h('header', { class: 'screen-bar' },
 const settled = () => new Set(profile.ledger().map((e) => e.n));
 const nextItem = () => items.find((it) => !settled().has(it.n)) ?? items[0];
 const dayKey = (k) => `day-${k}`;
-const dayItems = (k) => DAYS[k - 1].map((n) => items.find((it) => it.n === n));
-// The vessels of a day in arrival order, with their offsets on the desk clock
-const dayLanes = (k) => dayItems(k).map((item, i) => ({ item, offset: i * ARRIVAL_GAP }));
+// The vessels of a day on one calendar, in arrival order
+const dayLanes = (k) => planDay(DAYS[k - 1].map((n) => items.find((it) => it.n === n)));
+const dayItems = (k) => dayLanes(k).map((l) => l.item);
 // After the training cargo, the desk runs in days of three vessels
 function nextStep() {
   const done = settled();
@@ -223,7 +223,7 @@ function deskView(n) {
 function dayDeskView(k) {
   if (!DAYS[k - 1]) return notFound();
   const next = k < DAYS.length ? { href: `#/day/${k + 1}`, label: `Start day ${k + 1}` } : null;
-  current = deskScreen({ key: dayKey(k), label: 'Desk day', title: `Day ${k}`, items: dayItems(k), next }, again);
+  current = deskScreen({ key: dayKey(k), label: 'Desk day', title: `Day ${k}`, items: dayLanes(k), next }, again);
   return current.el;
 }
 

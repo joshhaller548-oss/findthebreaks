@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
-import { createRun, ownerTicket, buildTickets, settleTicket, DAYS, ARRIVAL_GAP } from '../public/js/desk/run.mjs';
+import { createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
 
@@ -74,7 +74,7 @@ const named = recapNotes(playThrough(all[0]).summary(), all[0], ownerTicket(all[
 check('on a day, each sentence is led by the vessel name', named.every((x) => x.text.startsWith('Sea Falcon: ')));
 
 // ---------- 5, 12, 17. briefings: one strike rule, terms and rules only ----------
-const dayLanesOf = (k) => DAYS[k - 1].map((m, i) => ({ item: all[m - 1], offset: i * ARRIVAL_GAP }));
+const dayLanesOf = (k) => planDay(DAYS[k - 1].map((m) => all[m - 1]));
 const days = DAYS.map((_, i) => dayBriefing(dayLanesOf(i + 1)));
 const tb = briefing(training);
 check('the training briefing states the strike rule and its one exception', tb.targets.includes(`${STRIKE_RULE} ${TRAINING_EXCEPTION}`));
@@ -109,7 +109,7 @@ for (const it of everyone) for (const g of giveaways(JSON.stringify(briefing(it)
 DAYS.forEach((ns, i) => {
   // Only the words on screen, not the cargo objects the briefing carries
   const text = JSON.stringify(days[i], (k, v) => (k === 'item' ? undefined : v));
-  for (const m of ns) for (const g of giveaways(text, all[m - 1])) leaks.push(`Day ${i + 1}, ${all[m - 1].fixture.vessel}: ${g}`);
+  for (const { item } of dayLanesOf(i + 1)) for (const g of giveaways(text, item)) leaks.push(`Day ${i + 1}, ${item.fixture.vessel}: ${g}`);
 });
 check(`no briefing reveals any ticket's answer (${everyone.length} cargoes, ${DAYS.length} days)`, leaks.length === 0, leaks.slice(0, 4).join('; '));
 // The check itself has teeth: the old briefing lines are caught
@@ -125,6 +125,45 @@ check('a briefing for a worked SHEX weekend reads the same as for an idle one on
   }
   return byBasis.size >= 2;
 })());
+
+// ---------- 16. a day's dates agree with the desk clock and the arrivals ----------
+const plans = DAYS.map((ns) => planDay(ns.map((m) => all[m - 1])));
+const norOf = (it) => toMin(it.fixture.nor_tendered);
+check('each vessel arrives on the desk clock at its own NOR', plans.every((p) => p.every((l) => norOf(l.item) - norOf(p[0].item) === l.offset)));
+check('vessels arrive in NOR order', plans.every((p) => p.every((l, i) => i === 0 || l.offset >= p[i - 1].offset)));
+check(`every day keeps its arrivals within three days (${plans.map((p) => p.map((l) => l.offset / 60).join('/')).join(', ')} hrs)`, plans.every((p) => p.at(-1).offset <= 72 * 60));
+check('every day still has the same three fixtures', plans.every((p, i) => p.map((l) => l.item.n).sort((a, b) => a - b).join() === DAYS[i].join()));
+check('day 1: Sea Falcon and Iron Meridian tender NOR together, Wed 9 Sep, 21:00; Cape Orchid follows on Fri 11 Sep, 21:00', plans[0].map((l) => `${l.item.fixture.vessel} ${stamp(norOf(l.item))}`).join(' | ') === 'Sea Falcon Wed 9 Sep, 21:00 | Iron Meridian Wed 9 Sep, 21:00 | Cape Orchid Fri 11 Sep, 21:00');
+const same = (a, b) => ['allowed_min', 'used_min', 'elapsed_min', 'deductible_stoppage_min', 'shex_excepted_min', 'balance_min', 'result', 'time_saved_min', 'time_on_demurrage_min', 'amount_usd', 'commenced_on'].every((k) => a[k] === b[k]);
+check('moving a cargo by whole weeks keeps every figure from calc.mjs', everyone.every((it) => [-3, -1, 1, 4].every((wk) => same(shiftItem(it, wk).result, it.result))));
+check('moving a cargo keeps its tickets, answers and weekdays', all.every((it) => {
+  const moved = shiftItem(it, 2);
+  const a = createRun(it).steps;
+  const b = createRun(moved).steps;
+  return a.length === b.length && a.every((t, i) => t.type === b[i].type && t.answer === b[i].answer && t.minutes === b[i].minutes) && stamp(norOf(moved)).slice(0, 3) === stamp(norOf(it)).slice(0, 3);
+}));
+check('a moved vessel’s model note uses its moved dates', plans.flat().filter((l) => l.item.ownerError && l.item.shift).every((l) => !hasIsoDate(modelNote(l.item))) && modelNote(plans[0].find((l) => l.item.fixture.vessel === 'Cape Orchid').item).includes('Sat 12 Sep'));
+// Played on the desk, with the planned offsets
+const playDay = (lanes) => {
+  const day = createDay(lanes);
+  const seen = [];
+  for (let guard = 0; !day.finished && guard < 20000; guard++) {
+    const l = day.active;
+    if (l) {
+      if (l.run.explaining) { day.explain('x', true); continue; }
+      seen.push({ i: l.i, T: day.T, at: day.start + day.T });
+      day.call(l.run.open.answer);
+      continue;
+    }
+    day.advance(60);
+  }
+  return { day, seen };
+};
+const plays = plans.map(playDay);
+check('planned days play to the true statement on every vessel', plays.every(({ day }) => day.finished && day.lanes.every((l) => l.run.used === l.item.result.used_min && l.run.summary().difference_usd === 0)));
+check('no vessel brings a ticket before its NOR on the desk calendar', plays.every(({ day, seen }) => seen.every((x) => x.at >= day.lanes[x.i].run.nor)));
+check('every planned day still interleaves tickets across vessels', plays.every(({ seen }) => seen.some((x, i) => i > 1 && x.i !== seen[i - 1].i && seen.slice(0, i).some((y) => y.i === x.i))));
+check('the desk calendar starts at the first NOR', plays.every(({ day }) => day.start === day.lanes[0].run.nor));
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

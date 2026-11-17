@@ -50,6 +50,7 @@ export function deskScreen(desk, { onLeave } = {}) {
   let raf = 0;
   let last = 0;
   let shownLane = null;
+  const announced = new Set();
 
   // ---------- status bar and vessel cards ----------
   const clockLabel = h('span', { class: 'sb-label' }, multi ? 'Desk clock' : 'Clock');
@@ -108,10 +109,12 @@ export function deskScreen(desk, { onLeave } = {}) {
 
   // ---------- drawing ----------
   function drawStatus() {
+    announceArrivals();
     const f = focus();
     if (day.active) showLane(day.active);
     else if (!harb) showLane(f);
-    clockEl.textContent = multi ? `+${hm(day.T)}` : stamp(f.run.t);
+    // One calendar for the day: the desk clock and every vessel read the same
+    clockEl.textContent = multi ? stamp(day.start + day.T) : stamp(f.run.t);
     scoreEl.textContent = N.format(day.score);
     if (Number.isFinite(day.strikesAllowed)) {
       strikesEl.replaceChildren(...Array.from({ length: day.strikesAllowed }, (_, i) => h('span', { class: i < day.strikes ? 'used' : '' }, '')));
@@ -133,7 +136,9 @@ export function deskScreen(desk, { onLeave } = {}) {
         c.money.textContent = '';
         return;
       }
-      c.clock.textContent = stamp(r.t);
+      // A vessel whose last ticket closed a whole period is ahead of the
+      // desk; it shows the desk's time until the desk catches up
+      c.clock.textContent = stamp(multi && !r.finished ? Math.min(r.t, day.start + day.T) : r.t);
       const phase = r.phase();
       c.phase.textContent = r.finished ? 'Settled' : { 'turn time': 'Turn time', laytime: 'Laytime running', ticket: 'Ticket open', complete: 'Loading complete', owner: 'Owner check' }[phase];
       c.phase.dataset.phase = r.finished ? 'done' : phase;
@@ -459,7 +464,15 @@ export function deskScreen(desk, { onLeave } = {}) {
     if (e.key === ' ' && !day.finished && e.target === document.body) { e.preventDefault(); setPaused(!paused); }
   }
 
-  for (const l of day.lanes) addLine({ kind: 'milestone', when: stamp(l.run.nor), what: multi ? `NOR tendered, arrives at desk +${hm(l.offset)}` : 'NOR tendered', used: '' }, l);
+  // A vessel's NOR goes on the statement when the desk clock reaches it
+  function announceArrivals() {
+    for (const l of day.lanes) {
+      if (announced.has(l) || !day.arrived(l)) continue;
+      announced.add(l);
+      addLine({ kind: 'milestone', when: stamp(l.run.nor), what: 'NOR tendered', used: '' }, l);
+    }
+  }
+  announceArrivals();
   drawStatus();
   if (!tipFor(day.active)) drawWork();
   last = performance.now();

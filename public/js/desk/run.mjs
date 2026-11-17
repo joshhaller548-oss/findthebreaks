@@ -326,17 +326,57 @@ export function createRun(item, { strikes } = {}) {
 // ---------- a day on the desk ----------
 
 // The twelve fixtures as four days of three vessels. Each vessel keeps its
-// own statement of facts; the desk clock runs them together, the next one
-// arriving ARRIVAL_GAP desk minutes after the last.
+// own statement of facts. planDay() puts them on one calendar, and the desk
+// clock runs them together from the first NOR. ARRIVAL_GAP is the spacing
+// createDay() uses when it is given no offsets.
 export const DAYS = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]];
 export const ARRIVAL_GAP = 20 * 60;
 
+const WEEK = 7 * 1440;
+// A cargo moved by whole weeks. The weekday of every entry stays the same,
+// so the SHEX windows fall on the same hours and calc.mjs gives the same
+// minutes and money; only the dates change. `shift` is in minutes.
+export function shiftItem(item, weeks) {
+  const d = weeks * WEEK;
+  if (!d) return { ...item, shift: item.shift ?? 0 };
+  const mv = (s) => fromMin(toMin(s) + d);
+  const f = item.fixture;
+  const fixture = { ...f, nor_tendered: mv(f.nor_tendered), loading_commenced: mv(f.loading_commenced), loading_completed: mv(f.loading_completed) };
+  const stoppages = item.stoppages.map((x) => ({ ...x, start_time: mv(x.start_time), end_time: mv(x.end_time) }));
+  const owner = item.owner ? { ...item.owner, laytime_commenced: mv(item.owner.laytime_commenced) } : item.owner;
+  return { ...item, fixture, stoppages, owner, result: calculate(fixture, stoppages), events: deductions(fixture, stoppages), shift: (item.shift ?? 0) + d };
+}
+
+// A day's vessels on one calendar. One vessel keeps its dates; each other
+// moves by whole weeks to its first NOR at or after that one. The anchor is
+// whichever keeps the arrivals closest together. Returns [{ item, offset }]
+// in arrival order, offset in minutes after the first NOR. Vessels with the
+// same NOR arrive together.
+export function planDay(items) {
+  const nor = (it) => toMin(it.fixture.nor_tendered);
+  let best = null;
+  for (const anchor of items) {
+    const a = nor(anchor);
+    const weeks = items.map((it) => Math.ceil((a - nor(it)) / WEEK));
+    const spread = Math.max(...items.map((it, i) => nor(it) + weeks[i] * WEEK - a));
+    if (!best || spread < best.spread) best = { weeks, spread, a };
+  }
+  return items
+    .map((it, i) => ({ item: shiftItem(it, best.weeks[i]), i }))
+    .map((x) => ({ ...x, offset: nor(x.item) - best.a }))
+    .sort((x, y) => x.offset - y.offset || x.i - y.i)
+    .map(({ item, offset }) => ({ item, offset }));
+}
+
+// items are cargoes, or planned lanes [{ item, offset }] from planDay()
 export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
-  const training = items.length === 1 && items[0].training;
+  const planned = items.every((x) => x && 'offset' in x && 'item' in x);
+  const list = planned ? items.map((x) => x.item) : items;
+  const training = list.length === 1 && list[0].training;
   const limit = strikes ?? (training ? Infinity : STRIKES);
-  const lanes = items.map((item, i) => {
+  const lanes = list.map((item, i) => {
     const run = createRun(item, { strikes: Infinity });
-    return { i, item, run, offset: i * gap, nor: run.nor };
+    return { i, item, run, offset: planned ? items[i].offset : i * gap, nor: run.nor };
   });
   let T = 0;
   let strikesUsed = 0;
@@ -349,6 +389,8 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
   const day = {
     lanes,
     training,
+    // The desk calendar: the moment the first vessel tendered NOR, plus T
+    start: lanes[0].nor - lanes[0].offset,
     strikesAllowed: limit,
     get T() { return T; },
     get strikes() { return strikesUsed; },
