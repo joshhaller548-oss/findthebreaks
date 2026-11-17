@@ -176,6 +176,23 @@ check('planned days play to the true statement on every vessel', plays.every(({ 
 check('no vessel brings a ticket before its NOR on the desk calendar', plays.every(({ day, seen }) => seen.every((x) => x.at >= day.lanes[x.i].run.nor)));
 check('every planned day still interleaves tickets across vessels', plays.every(({ seen }) => seen.some((x, i) => i > 1 && x.i !== seen[i - 1].i && seen.slice(0, i).some((y) => y.i === x.i))));
 check('the desk calendar starts at the first NOR', plays.every(({ day }) => day.start === day.lanes[0].run.nor));
+// Every ticket opens at its own time on the day's calendar, never before:
+// a time ticket at its start, the start ticket at NOR, settlement and the
+// owner at completion
+const early = [];
+for (const lanes of plans) {
+  const day = createDay(lanes);
+  for (let guard = 0; !day.finished && guard < 20000; guard++) {
+    const l = day.active;
+    if (!l) { day.advance(45); continue; }
+    if (l.run.explaining) { day.explain('x', true); continue; }
+    const tk = l.run.open;
+    const dueAt = tk.type === 'time' ? tk.start : tk.type === 'start' ? l.run.nor : l.run.done;
+    if (day.start + day.T < dueAt) early.push(`${l.item.fixture.vessel} ${tk.type} due ${stamp(dueAt)}, desk ${stamp(day.start + day.T)}`);
+    day.call(tk.answer);
+  }
+}
+check('no ticket opens before the desk clock reaches it (a settled vessel never runs ahead of the desk)', early.length === 0, early.slice(0, 3).join('; '));
 
 // ---------- 18. stars weigh right-first-time and dollars ----------
 check('the playtest run, 3 of 4 right and USD 26,041.67 off, gets one star', starsFor({ rightFirstTime: 3, decisions: 4, off_usd: 26041.67 }) === 1);

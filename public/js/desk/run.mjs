@@ -466,7 +466,25 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
   const deskOf = (l) => l.run.t - l.nor + l.offset;
   // Only a vessel that has arrived can have a ticket in front of you
   const here = () => lanes.filter((l) => T >= l.offset);
-  const active = () => here().find((l) => l.run.explaining) ?? here().find((l) => l.run.open) ?? null;
+  // When a vessel's next step falls due, in desk minutes
+  const dueOn = (l) => l.offset + l.run.nextDue() - l.nor;
+  // A ticket is in front of you only once the desk clock reaches it. A
+  // vessel whose last ticket closed a whole period is ahead of the desk,
+  // and its next ticket waits for the desk to catch up, so every ticket
+  // opens at its own time on the day's one calendar.
+  const due = (l) => (l.run.explaining || l.run.open) && dueOn(l) <= T;
+  const active = () => here().find((l) => l.run.explaining && due(l)) ?? here().find((l) => l.run.open && due(l)) ?? null;
+  // When every vessel still working is ahead of the desk, the desk catches
+  // up to the earliest of them (never past the next arrival): a single
+  // vessel's clock jumps with its tickets, as it always has. It runs when
+  // a call closes a ticket, so advance() stays additive and a replay lands
+  // where the play did.
+  function catchUp() {
+    const live = lanes.filter((l) => !l.run.finished);
+    if (!live.length) return;
+    const ahead = Math.min(...live.map((l) => (T >= l.offset ? Math.min(deskOf(l), dueOn(l)) : l.offset)));
+    if (ahead > T) T = ahead;
+  }
 
   const day = {
     lanes,
@@ -487,7 +505,7 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
       if (active()) return 'ticket';
       if (day.finished) return 'complete';
       const live = lanes.filter((l) => !l.run.finished);
-      const next = Math.min(...live.map((l) => l.offset + l.run.nextDue() - l.nor));
+      const next = Math.min(...live.map(dueOn));
       const target = Math.min(T + dt, next);
       // A vessel can be ahead of the desk clock after a ticket jumps it to
       // the end of a period; it waits for the desk to catch up
@@ -499,6 +517,7 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
       const l = active();
       if (!l || takenOver) return null;
       const r = l.run.call(answer);
+      if (r?.right) catchUp();
       if (r && !r.right && r.struck) {
         strikesUsed += 1;
         if (strikesUsed >= limit) {
@@ -513,11 +532,13 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
       if (!l) return null;
       if (l.run.explaining) l.run.explain(null, false);
       else l.run.headCall();
+      catchUp();
       return l;
     },
     explain(text, gotIt) {
       const l = active();
       if (l?.run.explaining) l.run.explain(text, gotIt);
+      catchUp();
     },
     pinpoint(lines, hours) {
       const l = active();
