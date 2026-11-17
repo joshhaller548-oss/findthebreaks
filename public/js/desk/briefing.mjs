@@ -81,7 +81,8 @@ const CLAUSES = {
 };
 
 // One strike rule, stated the same way in every briefing and on the desk
-export const STRIKE_RULE = `Each wrong first call is a strike. ${STRIKES} strikes on a fixture, or across a day, and ${HEAD.name} takes the desk and calls the rest.`;
+const WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five'];
+export const STRIKE_RULE = `Each wrong first call is a strike. ${WORDS[STRIKES] ?? STRIKES} strikes on a fixture, or across a day, and ${HEAD.name} takes the desk and calls the rest.`;
 export const TRAINING_EXCEPTION = `The training cargo is the one exception: ${HEAD.name.split(' ')[0]} coaches every call and never takes over.`;
 export const strikeRule = (training) => (training ? `${STRIKE_RULE} ${TRAINING_EXCEPTION}` : STRIKE_RULE);
 export const OWNER_STEP = 'When a vessel completes, you settle the money and then the owner’s statement comes in. Accept it if it matches yours. Dispute it if not: name the wrong line and the hours, then say why in one sentence.';
@@ -102,7 +103,7 @@ export function briefing(item) {
         'Two things take hours off: stoppages the terms except, like rain, and the SHEX window.',
         'Finish inside laytime and the owner pays you despatch. Go over and you pay demurrage.',
       ]
-      : [clause.text, 'Each stoppage and SHEX period arrives as a ticket. Call it, and it goes on your statement.', OWNER_STEP],
+      : ['NOR goes in, turn time runs, then laytime starts. Your first call is when.', 'Each stoppage and SHEX period arrives as a ticket. Call it, and it goes on your statement.', OWNER_STEP],
     terms: [
       ['Vessel', f.vessel],
       ['Cargo', `${N.format(f.cargo_mt)} MT coal`],
