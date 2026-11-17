@@ -7,7 +7,7 @@ import { h } from '../dom.mjs';
 import { profile, NAME_MAX } from './profile.mjs';
 import { glossary } from './glossary.mjs';
 import { loadFixtures } from './fixtures.mjs';
-import { briefing, HEAD } from './briefing.mjs';
+import { briefing, dayBriefing, HEAD } from './briefing.mjs';
 import { harbour } from './harbour.mjs';
 import { deskScreen } from './desk-screen.mjs';
 import { DAYS, ARRIVAL_GAP } from './run.mjs';
@@ -29,6 +29,8 @@ const settled = () => new Set(profile.ledger().map((e) => e.n));
 const nextItem = () => items.find((it) => !settled().has(it.n)) ?? items[0];
 const dayKey = (k) => `day-${k}`;
 const dayItems = (k) => DAYS[k - 1].map((n) => items.find((it) => it.n === n));
+// The vessels of a day in arrival order, with their offsets on the desk clock
+const dayLanes = (k) => dayItems(k).map((item, i) => ({ item, offset: i * ARRIVAL_GAP }));
 // After the training cargo, the desk runs in days of three vessels
 function nextStep() {
   const done = settled();
@@ -153,7 +155,7 @@ function briefingScreen(n) {
     h('h2', { id: 'b-title' }, item.training ? 'Training cargo' : `${item.fixture.vessel}`),
     h('div', { class: 'brief-cols' },
       h('div', { class: 'brief-lesson' },
-        h('h3', {}, item.training ? 'How the clock works' : 'What decides this one'),
+        h('h3', {}, item.training ? 'How the clock works' : 'The clause to read first'),
         h('ol', { class: 'lesson' }, b.lesson.map((l) => h('li', {}, l))),
         h('div', { class: 'clause' },
           h('p', { class: 'clause-tag' }, 'The clause that matters'),
@@ -225,25 +227,22 @@ function dayDeskView(k) {
   return current.el;
 }
 
-function dayBriefing(k) {
+function dayBriefingScreen(k) {
   if (!DAYS[k - 1]) return notFound();
-  const ships = dayItems(k);
-  const gap = ARRIVAL_GAP / 60;
+  const b = dayBriefing(dayLanes(k));
   return h('section', { class: 'screen briefing-screen', 'aria-labelledby': 'd-title' },
     backBar(`Morning briefing \u00B7 Day ${k}`),
     h('h2', { id: 'd-title' }, `Day ${k}: three vessels`),
-    h('p', { class: 'screen-lede' }, `Three ships on one desk, each on its own charter party and statement of facts. The desk clock runs them together, the next arriving ${gap} hours after the last. Tickets come from all three, so check whose terms you are reading. Three wrong calls across the day and ${HEAD.name} takes the desk.`),
-    h('div', { class: 'day-ships' }, ships.map((it, i) => {
-      const b = briefing(it);
-      return h('article', { class: 'day-ship' },
-        h('p', { class: 'clause-tag' }, `Vessel ${i + 1} \u00B7 arrives +${i * gap} hrs`),
-        h('h3', {}, it.fixture.vessel),
-        h('dl', { class: 'fx-terms' }, b.terms.filter(([key]) => ['Laytime allowed', 'Exceptions', 'Waiting for berth', 'Despatch'].includes(key)).map(([key, v]) => h('div', {}, h('dt', {}, key), h('dd', {}, v)))),
-        h('div', { class: 'clause' }, h('p', { class: 'clause-tag' }, 'The clause that matters'), h('h4', {}, b.clause.title), h('p', {}, b.clause.text)));
-    })),
+    h('p', { class: 'screen-lede' }, b.lede),
+    h('ul', { class: 'day-rules' }, b.steps.map((t) => h('li', {}, t))),
+    h('div', { class: 'day-ships' }, b.arrivals.map((a) => h('article', { class: 'day-ship' },
+      h('p', { class: 'clause-tag' }, a.tag),
+      h('h3', {}, a.item.fixture.vessel),
+      h('dl', { class: 'fx-terms' }, a.brief.terms.filter(([key]) => ['Load rate', 'Laytime allowed', 'Exceptions', 'Waiting for berth', 'Despatch'].includes(key)).map(([key, v]) => h('div', {}, h('dt', {}, key), h('dd', {}, v)))),
+      h('div', { class: 'clause' }, h('p', { class: 'clause-tag' }, 'The clause to read first'), h('h4', {}, a.brief.clause.title), h('p', {}, a.brief.clause.text))))),
     h('figure', { class: 'quote' },
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, HEAD.name.split(' ').map((w) => w[0]).join('')),
-      h('blockquote', {}, h('p', {}, 'Three ships, three charter parties. Before you call a ticket, read whose it is. Same rain, different clause, different answer.')),
+      h('blockquote', {}, h('p', {}, b.quote)),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
     h('div', { class: 'brief-actions' },
       btn('big ink', { href: `#/daydesk/${k}` }, 'Open the desk'),
@@ -260,7 +259,7 @@ function render() {
       : screen === 'ledger' ? ledgerScreen()
         : screen === 'briefing' ? briefingScreen(Number(arg))
           : screen === 'desk' ? deskView(Number(arg))
-            : screen === 'day' ? dayBriefing(Number(arg))
+            : screen === 'day' ? dayBriefingScreen(Number(arg))
               : screen === 'daydesk' ? dayDeskView(Number(arg))
             : notFound();
   stage.replaceChildren(view);

@@ -318,6 +318,8 @@
 .day-diff.zero { background: var(--ok-soft); }
 .day-diff.off { background: var(--bad-soft); }
 .ledger-h { margin: 0.4rem 32px 0.5rem; font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.day-rules { margin: 0 32px 0.8rem; padding-left: 1.1rem; max-width: 72ch; color: var(--ink-2); }
+.day-rules li { margin-bottom: 0.25rem; }
 .day-ships { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding: 8px 32px 0; }
 .day-ship h3 { margin: 0.1rem 0 0.5rem; font: 700 1.2rem var(--sans); }
 .day-ship .fx-terms > div { grid-template-columns: 7.5rem minmax(0, 1fr); }
@@ -373,6 +375,7 @@
   .vcard { border-right: 0; border-bottom: 1px solid var(--bar-rule); }
   .day-ships { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 0; }
   .ledger-h { margin-left: 16px; margin-right: 16px; }
+  .day-rules { margin-left: 16px; margin-right: 16px; }
   .recap-table thead { display: none; }
   .recap-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--rule-strong); padding: 0.3rem 0; }
   .recap-table tbody th { grid-column: 1 / -1; color: var(--ink); font-weight: 700; }

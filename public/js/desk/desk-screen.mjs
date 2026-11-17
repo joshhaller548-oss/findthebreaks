@@ -116,7 +116,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     if (Number.isFinite(day.strikesAllowed)) {
       strikesEl.replaceChildren(...Array.from({ length: day.strikesAllowed }, (_, i) => h('span', { class: i < day.strikes ? 'used' : '' }, '')));
       strikesEl.setAttribute('aria-label', `${day.strikes} of ${day.strikesAllowed} wrong calls used`);
-    } else strikesEl.replaceChildren(h('span', { class: 'free' }, 'no strike limit'));
+    } else strikesEl.replaceChildren(h('span', { class: 'free' }, 'Training: no strike limit'));
     day.lanes.forEach((l, i) => {
       const c = cards[i];
       const r = l.run;
@@ -333,7 +333,7 @@ export function deskScreen(desk, { onLeave } = {}) {
       h('p', { class: 'ticket-no' }, multi ? `${desk.label} complete · every vessel settled` : `Loading complete · ${stamp(one.lane.run.done)}`),
       h('div', { class: 'sum-head' }, h('h3', { id: 'sum-title' }, `${desk.title} settled`), stars(s.stars)),
       h('p', { class: 'sum-score mono' }, `Score ${N.format(s.score)}`, h('span', { class: 'muted' }, ` · best ${N.format(best)}`)),
-      s.takenOver ? h('p', { class: 'taken' }, `Three wrong calls, so ${HEAD.name} took the desk. Run it again to settle it yourself.`) : null,
+      s.takenOver ? h('p', { class: 'taken' }, `Three strikes, so ${HEAD.name} took the desk and called the rest. Run it again to settle it yourself.`) : null,
     ];
     const grid = multi
       ? h('table', { class: 'owner-table recap-table' },
