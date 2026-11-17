@@ -4,39 +4,24 @@
 // (createDay); this file only draws them and takes your calls.
 
 import { h } from '../dom.mjs';
-import { fromMin } from '../laytime/calc.mjs';
 import { createDay, ticketTitle, CALLS } from './run.mjs';
-import { when, HEAD } from './briefing.mjs';
+import { HEAD, termsLines, modelNote, recapNotes } from './briefing.mjs';
+import { when, stamp, span, hm, hrs, owed, USD, N } from './format.mjs';
 import { harbour } from './harbour.mjs';
 import { profile } from './profile.mjs';
 
 // Simulated minutes per real second, at normal and fast speed
 const SPEEDS = { normal: 240, fast: 960 };
 const HEAD_DELAY = 900;
-const USD = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const N = new Intl.NumberFormat('en-GB');
-const hrs = (min) => (min / 60).toFixed(2);
-const hm = (min) => {
-  const m = Math.abs(Math.round(min));
-  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
-};
-const stamp = (t) => when(fromMin(t));
-const span = (a, b) => {
-  const [sa, sb] = [fromMin(a), fromMin(b)];
-  return sa.slice(0, 10) === sb.slice(0, 10) ? `${stamp(a)} to ${sb.slice(11)}` : `${stamp(a)} to ${stamp(b)}`;
-};
-const owed = (r, amount) => (r === 'level' ? 'Level' : `${r === 'demurrage' ? 'Demurrage' : 'Despatch'} USD ${USD.format(amount)}`);
 const stars = (n) => h('span', { class: 'stars', 'aria-label': `${n} of 3 stars` }, '★'.repeat(n), h('span', { class: 'off' }, '★'.repeat(3 - n)));
 const vesselName = (item) => (item.training ? 'Training cargo' : item.fixture.vessel);
 
-function termsStrip(f, name) {
+// The vessel's name heads the strip only when several share the desk, but
+// the list is always labelled with it
+function termsStrip(f, name, showName) {
   return h('ul', { class: 'terms-strip', 'aria-label': `Terms on ${name}` },
-    name ? h('li', { class: 'ts-vessel' }, name) : null,
-    h('li', {}, f.shex_basis === 'SHINC' ? 'SHINC: Sundays and holidays count' : `${f.shex_basis}, ${f.shex_window}`),
-    h('li', {}, 'Weather, breakdowns and shifting are excepted'),
-    h('li', {}, f.shex_basis === 'SHINC' ? 'Holidays count' : 'Holidays are excepted'),
-    h('li', {}, f.waiting_for_berth ? 'Waiting for berth counts' : 'Waiting for berth is not covered'),
-    h('li', {}, `Despatch at half rate, ${f.despatch_basis}`));
+    showName ? h('li', { class: 'ts-vessel' }, name) : null,
+    termsLines(f).map((t) => h('li', {}, t)));
 }
 
 // Tips that pause the clock, on the training cargo only
@@ -87,15 +72,16 @@ export function deskScreen(desk, { onLeave } = {}) {
     const c = {
       clock: h('span', { class: 'vc-clock mono' }),
       phase: h('span', { class: 'phase' }),
-      left: h('span', { class: 'mono' }),
+      leftLabel: h('span', { class: 'sb-label' }, 'Laytime left'),
+      left: h('span', { class: 'mono vc-value' }),
       moneyLabel: h('span', { class: 'sb-label' }),
-      money: h('span', { class: 'mono money' }),
+      money: h('span', { class: 'mono money vc-value' }),
       shown: null,
     };
     c.el = h('div', { class: 'vcard' },
       h('p', { class: 'vc-name' }, vesselName(l.item)),
       c.clock, c.phase,
-      h('div', { class: 'vc-row' }, h('span', { class: 'sb-label' }, 'Laytime left'), c.left),
+      h('div', { class: 'vc-row' }, c.leftLabel, c.left),
       h('div', { class: 'vc-row' }, c.moneyLabel, c.money));
     return c;
   });
@@ -117,7 +103,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     shownLane = l;
     harb = harbour({ vessel: l.item.training ? 'Training' : l.item.fixture.vessel, loading: false });
     harbourSlot.replaceChildren(harb);
-    termsSlot.replaceChildren(termsStrip(l.item.fixture, multi ? vesselName(l.item) : null));
+    termsSlot.replaceChildren(termsStrip(l.item.fixture, vesselName(l.item), multi));
   }
 
   // ---------- drawing ----------
@@ -151,6 +137,18 @@ export function deskScreen(desk, { onLeave } = {}) {
       const phase = r.phase();
       c.phase.textContent = r.finished ? 'Settled' : { 'turn time': 'Turn time', laytime: 'Laytime running', ticket: 'Ticket open', complete: 'Loading complete', owner: 'Owner check' }[phase];
       c.phase.dataset.phase = r.finished ? 'done' : phase;
+      // Settled: the running figures stop, and the card shows the final ones
+      if (r.finished) {
+        const res = l.item.result;
+        c.leftLabel.textContent = 'Laytime used';
+        c.left.textContent = `${hm(r.used)} of ${hm(r.allowed)}`;
+        c.left.classList.remove('neg');
+        c.moneyLabel.textContent = 'Settled';
+        c.money.classList.toggle('up', res.result === 'demurrage');
+        c.money.textContent = owed(res.result, res.amount_usd);
+        return;
+      }
+      c.leftLabel.textContent = 'Laytime left';
       const left = r.left;
       c.left.textContent = left >= 0 ? hm(left) : `over ${hm(left)}`;
       c.left.classList.toggle('neg', left < 0);
@@ -301,7 +299,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     } else {
       parts.push(
         explainText.trim() ? h('blockquote', { class: 'yours' }, h('p', {}, explainText.trim())) : h('p', { class: 'muted' }, 'You left it blank.'),
-        h('div', { class: 'model-note' }, h('p', { class: 'coach-tag' }, 'Model note'), h('p', {}, tk.error?.note ?? 'Their laytime used is higher than the true figure.')),
+        h('div', { class: 'model-note' }, h('p', { class: 'coach-tag' }, 'Model note'), h('p', {}, modelNote(l.item))),
         h('p', { class: 'ticket-ask' }, 'Did your sentence say the same thing?'),
         h('div', { class: 'ticket-calls' },
           h('button', { class: 'gbtn ok', type: 'button', onclick: () => finishExplain(true) }, 'Yes, I had it'),
@@ -350,20 +348,8 @@ export function deskScreen(desk, { onLeave } = {}) {
         h('div', {}, h('dt', {}, 'Your first calls'), h('dd', { class: 'mono' }, owed(one.yours.result, one.yours.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.yours.used_min)} hrs used`)),
         h('div', {}, h('dt', {}, 'True statement'), h('dd', { class: 'mono' }, owed(one.correct.result, one.correct.amount_usd)), h('dd', { class: 'muted mono' }, `${hrs(one.correct.used_min)} hrs used`)),
         h('div', { class: `diff ${diff === 0 ? 'zero' : 'off'}` }, h('dt', {}, 'Difference'), h('dd', { class: 'mono big' }, `USD ${USD.format(Math.abs(diff))}`), h('dd', {}, verdict)));
-    const notes = s.per.flatMap((p) => {
-      const l = p.lane;
-      const ownerTk = l.run.steps.find((t) => t.type === 'owner');
-      const out = [];
-      if (ownerTk) {
-        out.push(h('p', {}, `${multi ? `${vesselName(l.item)}: ` : ''}${ownerTk.answer === 'dispute'
-          ? `the owner claimed ${ownerTk.gap_hrs.toFixed(2)} hrs more than the true statement.${p.explained ? (p.explained.gotIt ? ' You named the error.' : ' Read the model note again.') : ''}`
-          : 'the owner’s statement was right, and signing it was the right call.'}`));
-      }
-      if (p.yours.demurrage_after_exceptions && !p.correct.demurrage_after_exceptions) {
-        out.push(h('p', { class: 'note' }, `${multi ? `${vesselName(l.item)}: ` : ''}by your calls laytime ran out at ${when(p.yours.laytime_expiry)}, before the excepted time that followed. Once on demurrage, always on demurrage: those hours no longer came off.`));
-      }
-      return out;
-    });
+    const notes = s.per.flatMap((p) => recapNotes(p, p.lane.item, p.lane.run.steps.find((t) => t.type === 'owner'), multi ? vesselName(p.lane.item) : null)
+      .map((x) => h('p', { class: x.kind === 'note' ? 'note' : null }, x.text)));
     const wrongs = s.per.flatMap((p) => p.wrong.map((tk) => h('li', {}, multi ? h('span', { class: 'st-vessel' }, `${vesselName(p.lane.item)} · `) : null, ...describe(tk, p.lane))));
     return h('article', { class: 'summary', 'aria-labelledby': 'sum-title' },
       ...head,

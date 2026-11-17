@@ -292,7 +292,8 @@
 
 .fleet { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--bar-bg); color: var(--bar-ink); border-bottom: 1px solid var(--rule-strong); }
 .fleet.n1 { grid-template-columns: minmax(0, 1fr); }
-.fleet.n1 .vcard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+.fleet.n1 .vcard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr); align-items: center; column-gap: 1.25rem; }
+.fleet.n1 .vc-row { border-left: 1px solid var(--bar-rule); padding-left: 1rem; }
 .fleet.n1 .vc-name { display: none; }
 .vcard { padding: 0.55rem 0.9rem 0.65rem; border-right: 1px solid var(--bar-rule); border-top: 3px solid transparent; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
 .vcard:last-child { border-right: 0; }
@@ -301,7 +302,9 @@
 .vcard.done .phase { color: #8fdc9d; }
 .vc-name { margin: 0; font: 700 0.95rem var(--sans); }
 .vc-clock { font-size: 0.85rem; }
-.vc-row { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; font-size: 0.85rem; }
+.vc-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.1rem 0.75rem; align-items: baseline; font-size: 0.85rem; min-width: 0; }
+.vc-row .sb-label { flex: none; }
+.vc-value { margin-left: auto; text-align: right; }
 .vc-row .neg { color: #ff8f83; }
 .ts-vessel { font-weight: 700; color: var(--ink); }
 .ts-vessel::before { display: none; }
@@ -365,7 +368,8 @@
   .sum-grid > div:last-child { border-bottom: 0; }
   .statement { max-height: none; }
   .fleet { grid-template-columns: minmax(0, 1fr); }
-  .fleet.n1 .vcard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.3rem 0.8rem; }
+  .fleet.n1 .vcard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.4rem 1rem; }
+  .fleet.n1 .vc-row { border-left: 0; padding-left: 0; border-top: 1px solid var(--bar-rule); padding-top: 0.35rem; }
   .vcard { border-right: 0; border-bottom: 1px solid var(--bar-rule); }
   .day-ships { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 0; }
   .ledger-h { margin-left: 16px; margin-right: 16px; }

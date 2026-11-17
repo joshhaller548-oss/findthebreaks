@@ -2,17 +2,12 @@
 // finds in it. Nothing here does laytime maths; it only decides which
 // clause will matter on this cargo and says so in desk language.
 
-import { toMin, DAYS } from '../laytime/calc.mjs';
+import { when, cap, humanDates } from './format.mjs';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export { when };
 const N = new Intl.NumberFormat('en-GB');
 const USD = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
 
-export function when(stamp) {
-  const d = new Date(toMin(stamp) * 60000);
-  const hm = stamp.slice(11, 16);
-  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}, ${hm}`;
-}
 export const hours = (min) => {
   const h = min / 60;
   return `${Number.isInteger(h) ? h : h.toFixed(2)} hrs`;
@@ -96,7 +91,7 @@ export function briefing(item) {
     terms: [
       ['Vessel', f.vessel],
       ['Cargo', `${N.format(f.cargo_mt)} MT coal`],
-      ['Load rate', `${N.format(f.load_rate_mt_per_day)} MT a day`],
+      ['Load rate', `${N.format(f.load_rate_mt_per_day)} MT per weather working day`],
       ['Laytime allowed', `${hours(result.allowed_min)} (${days(result.allowed_min)})`],
       ['Turn time', `${f.turn_time_hrs} hrs`],
       ['NOR tendered', when(f.nor_tendered)],
@@ -109,4 +104,36 @@ export function briefing(item) {
       ? ['Call when laytime starts.', 'Call every stoppage and SHEX period.', 'Settle the money. No strike limit on training.']
       : ['Call when laytime starts.', 'Call every stoppage and SHEX period.', 'Settle the money.', 'Accept or dispute the owner’s statement.', 'Three wrong calls and the head of operations takes over.'],
   };
+}
+
+// The terms strip over the desk: what this charter party takes off the
+// clock, in the words the tickets and model notes use
+export function termsLines(f) {
+  return [
+    f.shex_basis === 'SHINC' ? 'SHINC: Sundays and holidays count' : `${f.shex_basis}, ${f.shex_window}`,
+    'Weather working days: rain or swell that stops loading is excepted',
+    'Breakdowns and shifting are excepted',
+    f.shex_basis === 'SHINC' ? 'Holidays count' : 'Holidays are excepted',
+    f.waiting_for_berth ? 'Waiting for berth counts' : 'Waiting for berth is not covered',
+    `Despatch at half rate, ${f.despatch_basis}`,
+  ];
+}
+
+// The model note for a disputed owner's statement, in the desk's dates
+export const modelNote = (item) => (item.ownerError ? humanDates(item.ownerError.note, item.shift ?? 0) : 'Their laytime used is higher than the true figure.');
+
+// The sentences under the recap, one list per vessel. `p` is a vessel's
+// summary from run.mjs; `name` is set on a day of several vessels.
+export function recapNotes(p, item, ownerTk, name = null) {
+  const lead = (text) => (name ? `${name}: ${text}` : cap(text));
+  const out = [];
+  if (ownerTk) {
+    out.push({ kind: 'owner', text: lead(ownerTk.answer === 'dispute'
+      ? `the owner claimed ${ownerTk.gap_hrs.toFixed(2)} hrs more than the true statement.${p.explained ? (p.explained.gotIt ? ' You named the error.' : ' Read the model note again.') : ''}`
+      : 'the owner’s statement was right, and signing it was the right call.') });
+  }
+  if (p.yours.demurrage_after_exceptions && !p.correct.demurrage_after_exceptions) {
+    out.push({ kind: 'note', text: lead(`by your calls laytime ran out at ${when(p.yours.laytime_expiry)}, before the excepted time that followed. Once on demurrage, always on demurrage: those hours no longer came off.`) });
+  }
+  return out;
 }
