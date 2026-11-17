@@ -13,6 +13,7 @@ import { profile } from './profile.mjs';
 
 // Simulated minutes per real second, at normal and fast speed
 const SPEEDS = { normal: 240, fast: 960 };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const HEAD_DELAY = 900;
 const stars = (n) => h('span', { class: 'stars', role: 'img', 'aria-label': `${n} of 3 stars` }, '★'.repeat(n), h('span', { class: 'off' }, '★'.repeat(3 - n)));
 // The star rules from run.mjs, written out, with the one this run met marked
@@ -142,18 +143,32 @@ export function deskScreen(desk, { onLeave } = {}) {
   }
 
   // ---------- drawing ----------
+  // Status writes touch the DOM only when a value changes, so a stopped
+  // clock costs no layout at all
+  const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  const attr = (node, k, v) => { if (node.getAttribute(k) !== v) node.setAttribute(k, v); };
+  let strikesShown = '';
+  let easing = false;
   function drawStatus() {
     announceArrivals();
     const f = focus();
     if (day.active) showLane(day.active);
     else if (!harb) showLane(f);
     // One calendar for the day: the desk clock and every vessel read the same
-    clockEl.textContent = multi ? stamp(day.start + day.T) : stamp(f.run.t);
-    scoreEl.textContent = N.format(day.score);
-    if (Number.isFinite(day.strikesAllowed)) {
-      strikesEl.replaceChildren(...Array.from({ length: day.strikesAllowed }, (_, i) => h('span', { class: i < day.strikes ? 'used' : '' }, '')));
-      strikesEl.setAttribute('aria-label', `${day.strikes} of ${day.strikesAllowed} wrong calls used`);
-    } else strikesEl.replaceChildren(h('span', { class: 'free' }, 'Training: no strike limit'));
+    put(clockEl, multi ? stamp(day.start + day.T) : stamp(f.run.t));
+    put(scoreEl, N.format(day.score));
+    const strikeKey = `${day.strikes}/${day.strikesAllowed}`;
+    if (strikeKey !== strikesShown) {
+      strikesShown = strikeKey;
+      if (Number.isFinite(day.strikesAllowed)) {
+        strikesEl.replaceChildren(...Array.from({ length: day.strikesAllowed }, (_, i) => h('span', { class: i < day.strikes ? 'used' : '' }, '')));
+        strikesEl.setAttribute('aria-label', `${day.strikes} of ${day.strikesAllowed} strikes used`);
+      } else {
+        strikesEl.replaceChildren(h('span', { class: 'free' }, 'Training: no strike limit'));
+        strikesEl.removeAttribute('aria-label');
+      }
+    }
+    easing = false;
     day.lanes.forEach((l, i) => {
       const c = cards[i];
       const r = l.run;
@@ -162,47 +177,53 @@ export function deskScreen(desk, { onLeave } = {}) {
       c.el.classList.toggle('done', r.finished);
       c.el.classList.toggle('waiting', !arrived);
       if (!arrived) {
-        c.clock.textContent = `Arrives in ${hm(l.offset - day.T)}`;
-        c.phase.textContent = 'At anchor';
-        c.phase.dataset.phase = 'waiting';
-        c.left.textContent = hm(r.allowed);
-        c.moneyLabel.textContent = 'Despatch in hand';
-        c.money.textContent = '';
+        put(c.clock, `Arrives in ${hm(l.offset - day.T)}`);
+        put(c.phase, 'At anchor');
+        attr(c.phase, 'data-phase', 'waiting');
+        put(c.left, hm(r.allowed));
+        put(c.moneyLabel, 'Despatch in hand');
+        put(c.money, '');
         return;
       }
       // A vessel whose last ticket closed a whole period is ahead of the
       // desk; it shows the desk's time until the desk catches up
-      c.clock.textContent = stamp(multi && !r.finished ? Math.min(r.t, day.start + day.T) : r.t);
+      put(c.clock, stamp(multi && !r.finished ? Math.min(r.t, day.start + day.T) : r.t));
       const phase = r.phase();
-      c.phase.textContent = r.finished ? 'Settled' : { 'turn time': 'Turn time', laytime: 'Laytime running', ticket: 'Ticket open', complete: 'Loading complete', owner: 'Owner check' }[phase];
-      c.phase.dataset.phase = r.finished ? 'done' : phase;
+      put(c.phase, r.finished ? 'Settled' : { 'turn time': 'Turn time', laytime: 'Laytime running', ticket: 'Ticket open', complete: 'Loading complete', owner: 'Owner check' }[phase]);
+      attr(c.phase, 'data-phase', r.finished ? 'done' : phase);
       // Settled: the running figures stop, and the card shows the final ones
       if (r.finished) {
         const res = l.item.result;
-        c.leftLabel.textContent = 'Laytime used';
-        c.left.textContent = `${hm(r.used)} of ${hm(r.allowed)}`;
+        put(c.leftLabel, 'Laytime used');
+        put(c.left, `${hm(r.used)} of ${hm(r.allowed)}`);
         c.left.classList.remove('neg');
-        c.moneyLabel.textContent = 'Settled';
+        put(c.moneyLabel, 'Settled');
         c.money.classList.toggle('up', res.result === 'demurrage');
-        c.money.textContent = owed(res.result, res.amount_usd);
+        put(c.money, owed(res.result, res.amount_usd));
         return;
       }
-      c.leftLabel.textContent = 'Laytime left';
+      put(c.leftLabel, 'Laytime left');
       const left = r.left;
-      c.left.textContent = left >= 0 ? hm(left) : `over ${hm(left)}`;
+      put(c.left, left >= 0 ? hm(left) : `over ${hm(left)}`);
       c.left.classList.toggle('neg', left < 0);
       // Despatch still in hand at half rate, or demurrage running at full rate
       const rate = l.item.fixture.demurrage_rate_usd_per_day;
       const money = left >= 0 ? (left / 1440) * (rate / 2) : (-left / 1440) * rate;
-      c.moneyLabel.textContent = left >= 0 ? 'Despatch in hand' : 'Demurrage running';
+      put(c.moneyLabel, left >= 0 ? 'Despatch in hand' : 'Demurrage running');
       c.money.classList.toggle('up', left < 0);
-      c.shown = c.shown === null ? money : c.shown + (money - c.shown) * 0.3;
+      // The figure eases to its new value, unless motion is reduced
+      c.shown = c.shown === null || reduced.matches ? money : c.shown + (money - c.shown) * 0.3;
       if (Math.abs(money - c.shown) < 0.5) c.shown = money;
-      c.money.textContent = `USD ${USD.format(c.shown)}`;
+      else easing = true;
+      put(c.money, `USD ${USD.format(c.shown)}`);
     });
     const fl = focus();
-    harb?.classList.toggle('loading', fl.run.t >= fl.run.loadStart && fl.run.t < fl.run.done && !fl.run.open && day.arrived(fl));
-    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    if (harb) {
+      harb.classList.toggle('loading', fl.run.t >= fl.run.loadStart && fl.run.t < fl.run.done && !fl.run.open && day.arrived(fl));
+      // The water and the ship move only while the clock runs
+      harb.classList.toggle('still', !running());
+    }
+    put(pauseBtn, paused ? 'Resume' : 'Pause');
   }
 
   function addLine(line, l) {
@@ -211,7 +232,8 @@ export function deskScreen(desk, { onLeave } = {}) {
       h('span', { class: 'st-hrs mono' }, line.hrs ?? ''),
       h('span', { class: 'st-what' }, gloss(line.what)),
       h('span', { class: 'st-used mono' }, line.used ?? '')));
-    statementRows.lastElementChild.scrollIntoView?.({ block: 'nearest' });
+    // Scroll the statement's own box, never the page
+    if (statementRows.scrollHeight > statementRows.clientHeight) statementRows.scrollTop = statementRows.scrollHeight;
   }
 
   function lineFor(ln, l) {
@@ -292,6 +314,7 @@ export function deskScreen(desk, { onLeave } = {}) {
   // the panel's first one. Focus elsewhere is never moved, so Space still
   // pauses and a ticket arriving never steals it.
   function drawWork() {
+    wake();
     const had = work.contains(document.activeElement);
     const fk = had ? document.activeElement.closest('[data-fk]')?.dataset.fk : null;
     paintWork();
@@ -491,8 +514,8 @@ export function deskScreen(desk, { onLeave } = {}) {
   }
   function setPaused(p) {
     paused = p;
-    last = performance.now();
     drawStatus();
+    wake();
   }
   function tipFor(l) {
     const tk = l?.run.open;
@@ -571,26 +594,46 @@ export function deskScreen(desk, { onLeave } = {}) {
     return r;
   }
 
-  function frame(now) {
+  // The frame loop runs only while the clock runs or a figure is still
+  // easing; a ticket, a tip, a pause or the summary stop it. The clock moves
+  // every frame, but the status is painted at most every 66 ms (250 ms with
+  // reduced motion), so a long run costs a little script and few layouts.
+  function running() { return !paused && !tip && !day.active && !day.finished; }
+  function wake() {
+    if (raf) return;
+    last = performance.now();
     raf = requestAnimationFrame(frame);
+  }
+  let painted = 0;
+  function frame(now) {
+    raf = 0;
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    if (!paused && !tip && !day.active && !day.finished) {
+    let force = false;
+    if (running()) {
       const first = day.lanes[0].run;
       const before = first.t;
       const state = day.advance(dt * SPEEDS[speed]);
       if (!commencedShown && first.t >= first.commenced && before < first.commenced) {
         commencedShown = true;
-        if (showTip('commenced')) { drawStatus(); return; }
+        if (showTip('commenced')) force = true;
       }
-      if (state === 'ticket') {
+      if (!force && state === 'ticket') {
         drawStatus();
         if (!tipFor(day.active)) drawWork();
-      } else if (state === 'complete') drawWork();
+        force = true;
+      } else if (state === 'complete') {
+        drawWork();
+        force = true;
+      }
       // Keep the clock saved every few desk hours
       if (day.T - savedT >= 6 * 60) save();
     }
-    drawStatus();
+    if (force || !running() || now - painted >= (reduced.matches ? 250 : 66)) {
+      drawStatus();
+      painted = now;
+    }
+    if ((running() || easing) && !raf) raf = requestAnimationFrame(frame);
   }
 
   function onKey(e) {
@@ -633,8 +676,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     tip = { title: 'Back on the desk', text: `Resumed where you left off: ${log.length} call${log.length === 1 ? '' : 's'} on the statement, the clock paused at ${multi ? stamp(day.start + day.T) : stamp(focus().run.t)}. To start over, use Start over on the briefing.` };
     drawWork();
   } else if (!tipFor(day.active)) drawWork();
-  last = performance.now();
-  raf = requestAnimationFrame(frame);
+  wake();
   addEventListener('keydown', onKey);
   addEventListener('pagehide', save);
 

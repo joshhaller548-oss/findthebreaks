@@ -448,6 +448,14 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
       throw new Error(`no option with ${text}`);
     };
     expectThat(`desk ${tag}: the start ticket opens at NOR`, await playTo('.ticket.t-start'));
+    // With a ticket open the clock is stopped, and so is the page: no
+    // layout, no frame loop, the harbour still
+    const m0 = await page.metrics();
+    await new Promise((r) => setTimeout(r, 1000));
+    const m1 = await page.metrics();
+    log(`desk idle ${tag}`, `${m1.LayoutCount - m0.LayoutCount} layouts, ${(m1.TaskDuration - m0.TaskDuration).toFixed(3)} s main thread in 1 s`);
+    expectThat(`desk ${tag}: a stopped clock costs no layout (${m1.LayoutCount - m0.LayoutCount})`, m1.LayoutCount - m0.LayoutCount === 0);
+    expectThat(`desk ${tag}: the harbour holds still while a ticket is open`, await page.$eval('.desk-screen .harbour', (e) => e.classList.contains('still')));
     await page.screenshot({ path: `${OUT}/17-desk-start-${tag}.png`, fullPage: true });
     await pickOption('when turn time runs out');
     expectThat(`desk ${tag}: the first time ticket arrives`, await playTo('.ticket.t-time'));
@@ -607,6 +615,13 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.screenshot({ path: `${OUT}/18-desk-ledger-${tag}.png`, fullPage: true });
   }
   if (width === 1360 && !dark) {
+    // Reduced motion: the harbour does not move and the money does not tick
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+    await page.evaluate(() => { location.hash = '#/desk/2'; });
+    await page.waitForSelector('.desk-screen .harbour');
+    const still = await page.$eval('.desk-screen .harbour .waves', (e) => getComputedStyle(e).animationName);
+    expectThat(`desk: with reduced motion the harbour has no animation (${still})`, still === 'none');
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
     // Straight to /laytime#/desk/4, two calls, then the same address again
     const f4 = createRun(deskItems[3]).steps;
     await page.goto(`${BASE}/laytime#/desk/4`, { waitUntil: 'load' });

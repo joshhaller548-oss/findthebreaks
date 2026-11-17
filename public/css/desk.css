@@ -101,7 +101,7 @@
 
 /* ---------- harbour band ---------- */
 
-.harbour { aspect-ratio: 1600 / 360; min-height: 140px; border-bottom: 1px solid var(--rule-strong); overflow: hidden; }
+.harbour { aspect-ratio: 1600 / 360; min-height: 140px; border-bottom: 1px solid var(--rule-strong); overflow: hidden; contain: layout paint; }
 .harbour svg { display: block; width: 100%; height: 100%; }
 .harbour .sky { fill: var(--sky); }
 .harbour .far { fill: var(--far); }
@@ -413,9 +413,13 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .stage > .screen { animation: rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .harbour .waves { animation: drift 9s linear infinite alternate; }
-  .harbour .ship { animation: bob 4.5s ease-in-out infinite alternate; }
-  .harbour.loading .stream { animation: pour 0.6s linear infinite; }
+  /* SVG transforms animate on the main thread, so the harbour moves in a
+     few flat steps a second rather than every frame */
+  .harbour .waves { animation: drift 9s steps(36) infinite alternate; }
+  .harbour .ship { animation: bob 4.5s steps(6) infinite alternate; }
+  /* On the desk, the harbour holds still while the clock is stopped */
+  .harbour.still .waves, .harbour.still .ship, .harbour.still .stream { animation-play-state: paused; }
+  .harbour.loading .stream { animation: pour 0.6s steps(3) infinite; }
   .gbtn { transition: transform 0.12s ease, box-shadow 0.12s ease; }
   .gbtn:not(:disabled):hover { transform: translate(-2px, -2px); box-shadow: 2px 2px 0 var(--ink-2); }
   .gbtn:not(:disabled):active { transform: none; box-shadow: none; }
