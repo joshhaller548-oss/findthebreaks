@@ -519,6 +519,10 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
       const l = active();
       if (l?.run.explaining) l.run.explain(text, gotIt);
     },
+    pinpoint(lines, hours) {
+      const l = active();
+      return l?.run.explaining ? l.run.pinpoint(lines, hours) : null;
+    },
     summary() {
       const per = lanes.map((l) => ({ lane: l, ...l.run.summary() }));
       const wrong = per.reduce((n, p) => n + p.wrong.length, 0);
@@ -538,4 +542,45 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
     },
   };
   return day;
+}
+
+// ---------- saving and resuming ----------
+
+// What the player did, in order, is enough to rebuild a desk: the clock
+// only ever stops at tickets, so the same calls in the same order reach
+// the same state. Each entry names the vessel and ticket it was made on,
+// so a log that no longer fits the data is refused, not misread.
+export function logEntry(day, action) {
+  const l = day.active;
+  if (!l) return null;
+  const tk = l.run.explaining ?? l.run.open;
+  return { ...action, lane: l.i, ticket: tk.id };
+}
+
+// A signature of the desk's data, so progress saved against other data is
+// dropped
+export const daySignature = (day) => day.lanes.map((l) => `${l.item.fixture.voyage_id}@${l.offset}:${l.run.steps.length}`).join('|');
+
+// Replay `log` onto a new day, then run the clock on to desk time T.
+// hooks.before() runs before each step, hooks.closed(lane) after a step
+// that put a line on a vessel's statement. Returns false if the log does
+// not fit this day.
+export function replayDay(day, log, T = 0, hooks = {}) {
+  for (const e of log) {
+    for (let guard = 0; !day.active && !day.finished && guard < 100000; guard++) day.advance(24 * 60);
+    hooks.before?.();
+    const l = day.active;
+    const tk = l && (l.run.explaining ?? l.run.open);
+    if (!l || l.i !== e.lane || tk?.id !== e.ticket) return false;
+    const lines = l.run.lines.length;
+    if (e.a === 'call') day.call(e.v);
+    else if (e.a === 'head') day.headCall();
+    else if (e.a === 'pin') day.pinpoint(e.lines, e.hours);
+    else if (e.a === 'explain') day.explain(e.text, e.gotIt);
+    else return false;
+    if (l.run.lines.length > lines) hooks.closed?.(l);
+  }
+  for (let guard = 0; day.T < T && !day.active && !day.finished && guard < 100000; guard++) day.advance(T - day.T);
+  hooks.before?.();
+  return true;
 }

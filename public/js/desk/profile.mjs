@@ -8,7 +8,7 @@ const SCHEMA = 1;
 export const NAME_MAX = 16;
 const NAME_OK = /^[\p{L}\p{N} .'_-]+$/u;
 
-const empty = () => ({ schema: SCHEMA, name: '', ledger: [], seen: [] });
+const empty = () => ({ schema: SCHEMA, name: '', ledger: [], seen: [], progress: {} });
 
 export function cleanName(raw) {
   const name = String(raw ?? '').replace(/\s+/g, ' ').trim();
@@ -46,6 +46,18 @@ export function createProfile(getStorage) {
       return c;
     },
     ledger: () => read().ledger,
+    // A desk in progress, by ledger key: { sig, log, T, ... }
+    progress: (key) => read().progress[key] ?? null,
+    saveProgress(key, data) {
+      const s = read();
+      write({ ...s, progress: { ...s.progress, [key]: { ...data, at: new Date().toISOString() } } });
+    },
+    clearProgress(key) {
+      const s = read();
+      if (!(key in s.progress)) return;
+      const { [key]: _, ...rest } = s.progress;
+      write({ ...s, progress: rest });
+    },
     // One-time explanations already shown in this browser
     seen: (key) => read().seen.includes(key),
     markSeen(key) {

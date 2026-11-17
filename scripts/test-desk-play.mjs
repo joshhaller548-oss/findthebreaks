@@ -12,7 +12,7 @@ import { createProfile } from '../public/js/desk/profile.mjs';
 import { glossary } from '../public/js/desk/glossary.mjs';
 import { glossSegments } from '../public/js/desk/gloss.mjs';
 import { verdictLabel } from '../public/js/check.mjs';
-import { afterCompletion, POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
+import { logEntry, replayDay, daySignature, afterCompletion, POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
 
@@ -277,6 +277,59 @@ check('every glossary entry can be found by its own name', glossary.every((g) =>
 const onDesk = [...everyone.flatMap((it) => [...termsLines(it.fixture), ...briefing(it).lesson, briefing(it).clause.text, ...briefing(it).targets]), ...days.flatMap((d) => [d.lede, ...d.steps])];
 const covered = new Set(onDesk.flatMap((t) => termsIn(t)));
 check(`briefings and terms strips underline most of the glossary (${covered.size} of ${glossary.length})`, covered.size >= glossary.length - 4, glossary.map((g) => g.term).filter((t) => !covered.has(t)).join(', '));
+
+// ---------- 9. resume a desk from what was saved ----------
+// Play a day the way the desk does, logging every action, and stop part way
+function partPlay(lanes, steps, { wrongEvery = 3 } = {}) {
+  const day = createDay(lanes);
+  const log = [];
+  const act = (action, apply) => { const e = logEntry(day, action); const r = apply(); if (e && r != null) log.push(e); return r; };
+  let k = 0;
+  for (let guard = 0; !day.finished && log.length < steps && guard < 20000; guard++) {
+    const l = day.active;
+    if (!l) { day.advance(37); continue; }
+    if (day.takenOver) { act({ a: 'head' }, () => day.headCall()); continue; }
+    if (l.run.explaining) {
+      const tk = l.run.explaining;
+      if (!l.run.pinpointed) {
+        act({ a: 'pin', lines: ['owed'], hours: tk.hours[0].id }, () => day.pinpoint(['owed'], tk.hours[0].id));
+        act({ a: 'pin', lines: tk.lines.filter((x) => x.differs).map((x) => x.id), hours: tk.hoursAnswer }, () => day.pinpoint(tk.lines.filter((x) => x.differs).map((x) => x.id), tk.hoursAnswer));
+      } else act({ a: 'explain', text: 'They counted it.', gotIt: true }, () => { day.explain('They counted it.', true); return true; });
+      continue;
+    }
+    const tk = l.run.open;
+    k += 1;
+    if (k % wrongEvery === 0 && tk.type === 'time') act({ a: 'call', v: tk.answer === 'off' ? 'counts' : 'off' }, () => day.call(tk.answer === 'off' ? 'counts' : 'off'));
+    act({ a: 'call', v: tk.answer }, () => day.call(tk.answer));
+  }
+  for (let i = 0; i < 5 && !day.active && !day.finished; i++) day.advance(53);
+  return { day, log };
+}
+const state = (day) => JSON.stringify({ T: day.T, score: day.score, strikes: day.strikes, takenOver: day.takenOver, active: day.active?.i ?? null, lanes: day.lanes.map((l) => ({ t: l.run.t, used: l.run.used, lines: l.run.lines.map((x) => [x.id, x.call, x.firstTime]), open: l.run.open?.id ?? null, explaining: l.run.explaining?.id ?? null, pin: l.run.pinpointed, first: l.run.summary().wrong.map((x) => x.id) })) });
+const resumable = plans.map((p, i) => [p, [6, 10, 14, 25][i]]);
+check('a part-played day resumes to exactly the same state on every day', resumable.every(([p, steps]) => {
+  const { day, log } = partPlay(p, steps);
+  const fresh = createDay(p);
+  return replayDay(fresh, JSON.parse(JSON.stringify(log)), day.T) && state(fresh) === state(day);
+}));
+const day1 = partPlay(plans[0], 1000, { wrongEvery: 8 });
+check('the log covers wrong calls, a dispute check miss and the sentence', day1.day.finished && ['call', 'pin', 'explain'].every((a) => day1.log.some((e) => e.a === a)) && day1.day.summary().wrong > 0, `finished ${day1.day.finished}, actions ${[...new Set(day1.log.map((e) => e.a))].join('/')}, wrong ${day1.day.summary().wrong}, taken ${day1.day.takenOver}`);
+const resumedDone = createDay(plans[0]);
+replayDay(resumedDone, day1.log);
+check('a whole day replays to the same summary', resumedDone.finished && JSON.stringify(resumedDone.summary().per.map((p) => [p.score, p.stars, p.difference_usd])) === JSON.stringify(day1.day.summary().per.map((p) => [p.score, p.stars, p.difference_usd])));
+const strikesOut = partPlay(plans[1], 40, { wrongEvery: 1 });
+const so = createDay(plans[1]);
+check('a day handed to the head of operations resumes handed over', strikesOut.day.takenOver && replayDay(so, strikesOut.log, strikesOut.day.T) && so.takenOver && state(so) === state(strikesOut.day));
+const trainingPart = partPlay([{ item: training, offset: 0 }], 2);
+const tr = createDay([{ item: training, offset: 0 }]);
+check('the training cargo resumes too', replayDay(tr, trainingPart.log, trainingPart.day.T) && state(tr) === state(trainingPart.day));
+check('a log that does not fit the desk is refused', !replayDay(createDay(plans[1]), partPlay(plans[0], 6).log) && !replayDay(createDay(plans[0]), [{ a: 'call', v: 'off', lane: 0, ticket: 9 }]));
+check('the signature changes with the data', daySignature(createDay(plans[0])) !== daySignature(createDay(plans[1])) && daySignature(createDay(plans[0])) === daySignature(createDay(planDay(DAYS[0].map((m) => all[m - 1])))));
+const progStore = mem();
+const pp = createProfile(() => progStore);
+pp.saveProgress(4, { sig: 'x', log: [1], T: 5 });
+pp.saveProgress('day-1', { sig: 'y', log: [], T: 0 });
+check('progress is saved per desk and cleared on its own', pp.progress(4).T === 5 && pp.progress('day-1').sig === 'y' && (pp.clearProgress(4), pp.progress(4) === null) && pp.progress('day-1') !== null);
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

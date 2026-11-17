@@ -4,7 +4,7 @@
 // (createDay); this file only draws them and takes your calls.
 
 import { h } from '../dom.mjs';
-import { createDay, ticketTitle, CALLS, STAR_RULES } from './run.mjs';
+import { createDay, ticketTitle, CALLS, STAR_RULES, logEntry, replayDay, daySignature } from './run.mjs';
 import { HEAD, termsLines, modelNote, recapNotes } from './briefing.mjs';
 import { when, stamp, span, hm, hrs, owed, USD, N } from './format.mjs';
 import { gloss } from './gloss.mjs';
@@ -56,6 +56,15 @@ const ATS_TIP = {
 // items the vessels, next the hash for the Next button
 export function deskScreen(desk, { onLeave } = {}) {
   const day = createDay(desk.items);
+  // Progress saved in this browser for this desk, if it still fits the data
+  const sig = daySignature(day);
+  let saved = profile.progress(desk.key);
+  if (saved && (saved.sig !== sig || !replayDay(createDay(desk.items), saved.log, saved.T))) {
+    profile.clearProgress(desk.key);
+    saved = null;
+  }
+  const log = [];
+  let savedT = 0;
   const multi = day.lanes.length > 1;
   const tips = day.training ? new Set(Object.keys(TIPS)) : new Set();
   let speed = 'normal';
@@ -75,6 +84,7 @@ export function deskScreen(desk, { onLeave } = {}) {
   let last = 0;
   let shownLane = null;
   const announced = new Set();
+  let commencedShown = false;
 
   // ---------- status bar and vessel cards ----------
   const clockLabel = h('span', { class: 'sb-label' }, multi ? 'Desk clock' : 'Clock');
@@ -394,7 +404,8 @@ export function deskScreen(desk, { onLeave } = {}) {
 
   function checkDispute() {
     const l = day.active;
-    const r = l?.run.pinpoint([...pickLines], pickHours);
+    const lines = [...pickLines];
+    const r = l ? act({ a: 'pin', lines, hours: pickHours }, () => day.pinpoint(lines, pickHours)) : null;
     if (!r) return;
     if (r.right) {
       checkMsg = null;
@@ -418,6 +429,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     const s = day.summary();
     if (!recorded) {
       recorded = true;
+      profile.clearProgress(desk.key);
       profile.record({ n: desk.key, label: desk.label, vessel: desk.title, score: s.score, stars: s.stars, right: s.rightFirstTime, decisions: s.decisions, difference_usd: s.difference_usd, off_usd: s.off_usd, takenOver: s.takenOver });
     }
     const best = Math.max(...profile.ledger().filter((e) => e.n === desk.key).map((e) => e.score));
@@ -460,7 +472,7 @@ export function deskScreen(desk, { onLeave } = {}) {
       wrongs.length ? h('ul', { class: 'sum-wrong' }, wrongs) : null,
       h('div', { class: 'sum-actions' },
         desk.next ? h('a', { class: 'gbtn ink', href: desk.next.href }, desk.next.label) : null,
-        h('button', { class: 'gbtn outline', type: 'button', onclick: () => onLeave?.('again') }, 'Run it again'),
+        h('button', { class: 'gbtn outline', type: 'button', onclick: () => { profile.clearProgress(desk.key); onLeave?.('again'); } }, 'Run it again'),
         h('a', { class: 'gbtn outline', href: '#/ledger' }, 'Ledger')));
   }
 
@@ -504,7 +516,7 @@ export function deskScreen(desk, { onLeave } = {}) {
   }
   function call(answer) {
     if (day.takenOver) return;
-    const r = day.call(answer);
+    const r = act({ a: 'call', v: answer }, () => day.call(answer));
     if (!r) return;
     if (!r.right) {
       feedback = r.message;
@@ -522,7 +534,7 @@ export function deskScreen(desk, { onLeave } = {}) {
       const l = day.active;
       if (!l) return;
       const wasExplaining = Boolean(l.run.explaining);
-      day.headCall();
+      act({ a: 'head' }, () => day.headCall());
       if (wasExplaining) { drawWork(); drawStatus(); return; }
       afterClose(l);
     }, HEAD_DELAY);
@@ -535,13 +547,30 @@ export function deskScreen(desk, { onLeave } = {}) {
     checkMsg = null;
   }
   function finishExplain(gotIt) {
-    day.explain(explainText.trim(), gotIt);
+    const text = explainText.trim();
+    act({ a: 'explain', text, gotIt }, () => { day.explain(text, gotIt); return true; });
     resetDispute();
     drawStatus();
     if (!tipFor(day.active)) drawWork();
   }
 
-  let commencedShown = false;
+  // ---------- saving ----------
+  function save() {
+    if (recorded || day.finished) return;
+    savedT = day.T;
+    profile.saveProgress(desk.key, { sig, log, T: day.T, tips: [...tips], commencedShown });
+  }
+  // Log what the player did on the open ticket, then the call itself
+  function act(action, apply) {
+    const e = logEntry(day, action);
+    const r = apply();
+    if (e && r !== null && r !== undefined) {
+      log.push(e);
+      save();
+    }
+    return r;
+  }
+
   function frame(now) {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -558,6 +587,8 @@ export function deskScreen(desk, { onLeave } = {}) {
         drawStatus();
         if (!tipFor(day.active)) drawWork();
       } else if (state === 'complete') drawWork();
+      // Keep the clock saved every few desk hours
+      if (day.T - savedT >= 6 * 60) save();
     }
     drawStatus();
   }
@@ -582,20 +613,41 @@ export function deskScreen(desk, { onLeave } = {}) {
       addLine({ kind: 'milestone', when: stamp(l.run.nor), what: 'NOR tendered', used: '' }, l);
     }
   }
+  if (saved) {
+    // Resume: the same calls again, putting each line on the statement in
+    // the order it first went on
+    replayDay(day, saved.log, saved.T, {
+      before: announceArrivals,
+      closed: (l) => addLine(lineFor(l.run.lines[l.run.lines.length - 1], l), l),
+    });
+    log.push(...saved.log);
+    savedT = day.T;
+    tips.clear();
+    for (const k of saved.tips ?? []) tips.add(k);
+    commencedShown = Boolean(saved.commencedShown);
+    if (day.active?.run.explaining && day.active.run.pinpointed) explainStage = 'write';
+  }
   announceArrivals();
   drawStatus();
-  if (!tipFor(day.active)) drawWork();
+  if (saved) {
+    tip = { title: 'Back on the desk', text: `Resumed where you left off: ${log.length} call${log.length === 1 ? '' : 's'} on the statement, the clock paused at ${multi ? stamp(day.start + day.T) : stamp(focus().run.t)}. To start over, use Start over on the briefing.` };
+    drawWork();
+  } else if (!tipFor(day.active)) drawWork();
   last = performance.now();
   raf = requestAnimationFrame(frame);
   addEventListener('keydown', onKey);
+  addEventListener('pagehide', save);
 
   return {
     el,
     day,
+    resumed: Boolean(saved),
     destroy() {
+      save();
       cancelAnimationFrame(raf);
       clearTimeout(headTimer);
       removeEventListener('keydown', onKey);
+      removeEventListener('pagehide', save);
     },
   };
 }

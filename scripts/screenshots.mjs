@@ -607,6 +607,27 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.screenshot({ path: `${OUT}/18-desk-ledger-${tag}.png`, fullPage: true });
   }
   if (width === 1360 && !dark) {
+    // Straight to /laytime#/desk/4, two calls, then the same address again
+    const f4 = createRun(deskItems[3]).steps;
+    await page.goto(`${BASE}/laytime#/desk/4`, { waitUntil: 'load' });
+    await page.waitForSelector('.ticket.t-start');
+    await page.keyboard.press(String(f4[0].options.findIndex((o) => o.id === f4[0].answer) + 1));
+    await page.click('.sb.controls .gbtn:nth-child(2)');
+    for (let i = 0; i < 80 && !(await page.$('.ticket.t-time')); i++) await new Promise((r) => setTimeout(r, 100));
+    await page.keyboard.press(f4[1].answer === 'off' ? 'e' : 'c');
+    await new Promise((r) => setTimeout(r, 300));
+    const before = await page.$$eval('.st-line', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+    await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+    await page.goto(`${BASE}/laytime#/desk/4`, { waitUntil: 'load' });
+    await page.waitForSelector('.desk-screen');
+    const tipTitle = await page.$eval('.tip h3', (e) => e.textContent).catch(() => '');
+    const after = await page.$$eval('.st-line', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+    log('desk resume', `${tipTitle}: ${after.length} lines`);
+    expectThat(`desk: /laytime#/desk/4 resumes the saved fixture, not a fresh one (${before.length} lines before, ${after.length} after)`, tipTitle === 'Back on the desk' && after.length >= 3 && JSON.stringify(after) === JSON.stringify(before));
+    await page.evaluate(() => { location.hash = '#/briefing/4'; });
+    await page.waitForSelector('.brief-actions');
+    const actions = await page.$eval('.brief-actions', (e) => e.innerText.replace(/\s+/g, ' '));
+    expectThat(`desk: the briefing offers Resume and Start over (${actions.slice(0, 60)})`, /Resume the desk/i.test(actions) && /Start over/i.test(actions));
     const allowed = await page.evaluate(() => { location.hash = '#/briefing/0'; return new Promise((r) => setTimeout(() => r([...document.querySelectorAll('.fx-terms > div')].map((d) => d.innerText.replace(/\s+/g, ' '))), 300)); });
     log('desk briefing', allowed.filter((t) => /allowed|NOR|Exceptions/.test(t)).join(' | '));
     expectThat('desk briefing shows 120 hrs allowed from calc.mjs', allowed.some((t) => t.includes('120 hrs (5 days)')));

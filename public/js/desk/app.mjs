@@ -35,9 +35,10 @@ const dayItems = (k) => dayLanes(k).map((l) => l.item);
 // After the training cargo, the desk runs in days of three vessels
 function nextStep() {
   const done = settled();
-  if (!done.has(0)) return { href: '#/briefing/0', tag: 'Training cargo', sub: 'Learn the clock on one cargo first', vessel: 'Training' };
+  const going = (key) => (profile.progress(key) ? ' \u00B7 in progress' : '');
+  if (!done.has(0)) return { href: '#/briefing/0', tag: `Training cargo${going(0)}`, sub: 'Learn the clock on one cargo first', vessel: 'Training' };
   const k = DAYS.findIndex((_, i) => !done.has(dayKey(i + 1))) + 1 || 1;
-  return { href: `#/day/${k}`, tag: `Day ${k} \u00B7 three vessels`, sub: dayItems(k).map((it) => it.fixture.vessel).join(', '), vessel: dayItems(k)[0].fixture.vessel };
+  return { href: `#/day/${k}`, tag: `Day ${k} \u00B7 three vessels${going(dayKey(k))}`, sub: dayItems(k).map((it) => it.fixture.vessel).join(', '), vessel: dayItems(k)[0].fixture.vessel };
 }
 
 function wordmark() {
@@ -180,13 +181,22 @@ function briefingScreen(n) {
       h('blockquote', {}, h('p', {}, gloss(b.clause.quote, seen))),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
     playable(item.n)
-      ? h('div', { class: 'brief-actions' },
-        btn('big ink', { href: `#/desk/${item.n}` }, 'Open the desk'),
-        h('p', { class: 'dnote' }, 'The clock starts at NOR. Tickets arrive as the agent reports them.'))
+      ? deskActions(item.n, `#/desk/${item.n}`, 'The clock starts at NOR. Tickets arrive as the agent reports them.')
       : h('div', { class: 'brief-actions' },
         btn('big ink', { disabled: true, 'aria-describedby': 'desk-soon' }, 'Open the desk', h('span', { class: 'sub' }, 'Coming soon')),
         h('p', { id: 'desk-soon', class: 'dnote' }, 'This fixture\u2019s desk is coming soon. Start with the training cargo, or try the drills under Desk tools.')),
   );
+}
+
+// Open the desk, or resume it with a way to start over
+function deskActions(key, href, note) {
+  const prog = profile.progress(key);
+  if (!prog) return h('div', { class: 'brief-actions' }, btn('big ink', { href }, 'Open the desk'), h('p', { class: 'dnote' }, note));
+  const calls = prog.log.length;
+  return h('div', { class: 'brief-actions' },
+    btn('big ink', { href }, 'Resume the desk', h('span', { class: 'sub' }, `${calls} call${calls === 1 ? '' : 's'} made, saved in this browser`)),
+    btn('outline', { onclick: () => { profile.clearProgress(key); location.hash = href; } }, 'Start over'),
+    h('p', { class: 'dnote' }, note));
 }
 
 function notFound() {
@@ -251,9 +261,7 @@ function dayBriefingScreen(k) {
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, HEAD.name.split(' ').map((w) => w[0]).join('')),
       h('blockquote', {}, h('p', {}, gloss(b.quote, seen))),
       h('figcaption', {}, `${HEAD.name}, ${HEAD.role.toLowerCase()}`)),
-    h('div', { class: 'brief-actions' },
-      btn('big ink', { href: `#/daydesk/${k}` }, 'Open the desk'),
-      h('p', { class: 'dnote' }, 'Each vessel opens with when its laytime starts, and closes with settlement and the owner\u2019s statement.')));
+    deskActions(dayKey(k), `#/daydesk/${k}`, 'Each vessel opens with when its laytime starts, and closes with settlement and the owner\u2019s statement.'));
 }
 
 function render() {
