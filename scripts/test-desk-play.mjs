@@ -331,5 +331,21 @@ pp.saveProgress(4, { sig: 'x', log: [1], T: 5 });
 pp.saveProgress('day-1', { sig: 'y', log: [], T: 0 });
 check('progress is saved per desk and cleared on its own', pp.progress(4).T === 5 && pp.progress('day-1').sig === 'y' && (pp.clearProgress(4), pp.progress(4) === null) && pp.progress('day-1') !== null);
 
+// ---------- 7. first load: everything fetched at once ----------
+const html = readFileSync(new URL('laytime.html', root), 'utf8');
+const preloaded = new Set([...html.matchAll(/<link rel="(?:modulepreload|preload)" href="([^"]+)"/g)].map((m) => m[1]));
+const graph = new Set();
+(function walk(path) {
+  if (graph.has(path)) return;
+  graph.add(path);
+  const src = readFileSync(new URL(`.${path}`, root), 'utf8');
+  for (const m of src.matchAll(/^import [^;]*? from '([^']+)';/gms)) walk(new URL(m[1], `https://x${path}`).pathname);
+})('/js/desk/app.mjs');
+const missing = [...graph].filter((x) => !preloaded.has(x));
+check(`laytime.html preloads every module the desk imports (${graph.size})`, missing.length === 0, missing.join(', '));
+const fetched = [...readFileSync(new URL('js/desk/fixtures.mjs', root), 'utf8').matchAll(/getJSON\('([^']+)'\)/g)].map((m) => m[1]);
+check(`laytime.html preloads every file the desk fetches (${fetched.length})`, fetched.length === 4 && fetched.every((x) => preloaded.has(x)));
+check('the desk shows a branded loading state, not a blank panel', /class="stage-loading" role="status"/.test(html) && /wordmark/.test(html.split('stage-loading')[1].slice(0, 300)));
+
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

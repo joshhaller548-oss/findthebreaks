@@ -65,7 +65,14 @@
   scroll-margin-top: 8px;
 }
 .stage > .screen { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.stage-loading, .stage-error { margin: auto; color: var(--muted); font: 0.9rem var(--mono); padding: 24px; }
+.stage-error { margin: auto; color: var(--muted); font: 0.9rem var(--mono); padding: 24px; }
+/* Shown until the desk's script takes the stage: the wordmark over a strip
+   of sea with a hull crossing it */
+.stage-loading { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.2rem; padding: 32px 16px; min-height: 320px; }
+.stage-loading .load-mark { font-size: clamp(2.2rem, 6vw, 4.4rem); margin: 0; text-align: center; }
+.load-sea { position: relative; width: min(420px, 100%); height: 18px; background: var(--sea); overflow: hidden; }
+.load-hull { position: absolute; left: 0; top: 4px; width: 22%; height: 10px; background: var(--hull); border-bottom: 3px solid var(--accent); }
+.load-text { margin: 0; font: 600 0.8rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-2); }
 .stage-error { color: var(--bad); }
 .stage-foot { margin: auto 0 0; padding: 10px 32px 14px; font-size: 0.75rem; color: var(--muted); border-top: 1px solid var(--rule); }
 
@@ -413,6 +420,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .stage > .screen { animation: rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .load-hull { animation: sail 1.6s steps(24) infinite; }
   /* SVG transforms animate on the main thread, so the harbour moves in a
      few flat steps a second rather than every frame */
   .harbour .waves { animation: drift 9s steps(36) infinite alternate; }
@@ -428,6 +436,7 @@
   .st-line { animation: rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 }
 @keyframes drift { to { transform: translateX(-40px); } }
+@keyframes sail { from { transform: translateX(-100%); } to { transform: translateX(460%); } }
 @keyframes bob { to { transform: translateY(3px); } }
 @keyframes pour { to { stroke-dashoffset: -9; } }
 

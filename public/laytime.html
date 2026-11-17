@@ -11,7 +11,24 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/site.css">
   <link rel="stylesheet" href="/css/desk.css">
+  <!-- The whole module graph and the data, fetched at once rather than one
+       import at a time. scripts/test-desk-play.mjs keeps this list complete. -->
   <link rel="modulepreload" href="/js/desk/app.mjs">
+  <link rel="modulepreload" href="/js/dom.mjs">
+  <link rel="modulepreload" href="/js/laytime/calc.mjs">
+  <link rel="modulepreload" href="/js/desk/briefing.mjs">
+  <link rel="modulepreload" href="/js/desk/desk-screen.mjs">
+  <link rel="modulepreload" href="/js/desk/fixtures.mjs">
+  <link rel="modulepreload" href="/js/desk/format.mjs">
+  <link rel="modulepreload" href="/js/desk/gloss.mjs">
+  <link rel="modulepreload" href="/js/desk/glossary.mjs">
+  <link rel="modulepreload" href="/js/desk/harbour.mjs">
+  <link rel="modulepreload" href="/js/desk/profile.mjs">
+  <link rel="modulepreload" href="/js/desk/run.mjs">
+  <link rel="preload" href="/data/laytime-worked-example.json" as="fetch" crossorigin>
+  <link rel="preload" href="/config/laytime-defaults.json" as="fetch" crossorigin>
+  <link rel="preload" href="/data/laytime.json" as="fetch" crossorigin>
+  <link rel="preload" href="/data/laytime.key.json" as="fetch" crossorigin>
 </head>
 <body class="desk-body">
   <header class="site">
@@ -25,7 +42,11 @@
 
   <main class="desk-page">
     <div class="stage" id="stage">
-      <p class="stage-loading">Loading the desk.</p>
+      <div class="stage-loading" role="status">
+        <p class="wordmark load-mark" aria-hidden="true"><span class="wm-line">Find the</span> <span class="wm-line"><span class="wm-break">Breaks</span></span></p>
+        <div class="load-sea" aria-hidden="true"><span class="load-hull"></span></div>
+        <p class="load-text">Opening the laytime desk</p>
+      </div>
     </div>
   </main>
 
