@@ -55,8 +55,12 @@ export function deskScreen(desk, { onLeave } = {}) {
   let tip = null;
   let feedback = null;
   let gain = null;
-  let explainStage = 'write';
+  // A dispute runs check, then write, then mark
+  let explainStage = 'check';
   let explainText = '';
+  let pickLines = new Set();
+  let pickHours = null;
+  let checkMsg = null;
   let headTimer = 0;
   let recorded = false;
   let raf = 0;
@@ -102,7 +106,7 @@ export function deskScreen(desk, { onLeave } = {}) {
 
   const harbourSlot = h('div', { class: 'harbour-slot' });
   const termsSlot = h('div', { class: 'terms-slot' });
-  const work = h('div', { class: 'desk-work', 'aria-live': 'polite' });
+  const work = h('div', { class: 'desk-work', 'aria-live': 'polite', tabindex: '-1' });
   const statementRows = h('ol', { class: 'statement' });
   const statement = h('aside', { class: 'desk-statement', 'aria-label': 'Your statement' }, h('h3', {}, 'Your statement'), statementRows);
   const el = h('section', { class: 'screen desk-screen', 'aria-label': 'The desk' },
@@ -257,7 +261,21 @@ export function deskScreen(desk, { onLeave } = {}) {
     ];
   }
 
+  // Redrawing the work panel replaces its buttons. If focus was in the
+  // panel, keep it there: on the same control if it is still there, else on
+  // the panel's first one. Focus elsewhere is never moved, so Space still
+  // pauses and a ticket arriving never steals it.
   function drawWork() {
+    const had = work.contains(document.activeElement);
+    const fk = had ? document.activeElement.closest('[data-fk]')?.dataset.fk : null;
+    paintWork();
+    if (!had || tip || work.contains(document.activeElement)) return;
+    const again = fk && work.querySelector(`[data-fk="${fk}"]`);
+    // With nothing to press, the panel itself holds focus for the next ticket
+    const target = (again && !again.disabled ? again : work.querySelector('button:not(:disabled), textarea, a[href]')) ?? work;
+    target.focus({ preventScroll: true });
+  }
+  function paintWork() {
     if (tip) {
       work.replaceChildren(h('div', { class: 'tip', role: 'dialog', 'aria-label': tip.title },
         h('p', { class: 'tip-tag' }, 'Coaching · clock paused'),
@@ -298,20 +316,51 @@ export function deskScreen(desk, { onLeave } = {}) {
     if (day.takenOver) scheduleHead();
   }
 
-  // After disputing: one sentence, then the model note, then your own mark
+  // After disputing: name the wrong lines and the hours, then one sentence,
+  // then the model note, then your own mark
   function explainCard(l) {
     const tk = l.run.explaining;
-    const area = h('textarea', { class: 'explain-input', rows: '3', maxlength: '300', placeholder: 'One sentence: what did the owner do wrong?', 'aria-label': 'What the owner got wrong' });
-    area.value = explainText;
-    area.addEventListener('input', () => { explainText = area.value; });
     const parts = [
       multi ? h('p', { class: 'tk-vessel' }, vesselName(l.item)) : null,
       h('p', { class: 'ticket-no' }, 'Owner’s statement · disputed'),
-      h('h3', {}, 'What did the owner get wrong?'),
-      h('p', {}, `They claim ${tk.gap_hrs.toFixed(2)} hrs more laytime used than you. Say why in one sentence, the way you would put it to the owner.`),
     ];
+    if (explainStage === 'check') {
+      const toggle = (id) => {
+        if (pickLines.has(id)) pickLines.delete(id); else pickLines.add(id);
+        drawWork();
+      };
+      const o = tk.owner;
+      const shown = {
+        commenced: [when(o.laytime_commenced), when(tk.yours.laytime_commenced)],
+        used: [`${o.laytime_used_hrs.toFixed(2)} hrs`, `${hrs(tk.yours.used_min)} hrs`],
+        owed: [owed(o.result, o.amount_usd), owed(tk.yours.result, tk.yours.amount_usd)],
+      };
+      parts.push(
+        h('h3', {}, 'Where is their statement wrong?'),
+        h('p', { class: 'ticket-ask', id: 'pick-lines' }, 'Pick every line you dispute.'),
+        h('div', { class: 'pick-lines', role: 'group', 'aria-labelledby': 'pick-lines' }, tk.lines.map((x) => h('button', {
+          class: `gbtn outline pick${pickLines.has(x.id) ? ' on' : ''}`, type: 'button', 'data-fk': `line-${x.id}`, 'aria-pressed': String(pickLines.has(x.id)), onclick: () => toggle(x.id),
+        }, x.label, h('span', { class: 'sub' }, `Owner ${shown[x.id][0]} · yours ${shown[x.id][1]}`)))),
+        h('p', { class: 'ticket-ask', id: 'pick-hours' }, 'By how many hours is their laytime used out?'),
+        h('div', { class: 'pick-hours', role: 'radiogroup', 'aria-labelledby': 'pick-hours' }, tk.hours.map((x) => h('button', {
+          class: `gbtn outline pick${pickHours === x.id ? ' on' : ''}`, type: 'button', 'data-fk': `hours-${x.id}`, role: 'radio', 'aria-checked': String(pickHours === x.id),
+          onclick: () => { pickHours = x.id; drawWork(); },
+        }, `${x.hrs.toFixed(2)} hrs`))),
+        h('div', { class: 'sum-actions' },
+          h('button', { class: 'gbtn ink', type: 'button', 'data-fk': 'check', disabled: !pickLines.size || !pickHours, onclick: checkDispute }, 'Check')),
+        checkMsg ? h('div', { class: 'coach', role: 'alert' }, h('p', { class: 'coach-tag' }, `${HEAD.name} · not quite`), h('p', {}, checkMsg), h('p', { class: 'muted small' }, 'Try again.')) : null);
+      return h('article', { class: 'ticket t-explain' }, ...parts);
+    }
+    const area = h('textarea', { class: 'explain-input', rows: '3', maxlength: '300', placeholder: 'One sentence: what did the owner do wrong?', 'aria-label': 'What the owner got wrong' });
+    area.value = explainText;
+    area.addEventListener('input', () => { explainText = area.value; });
+    const pin = l.run.pinpointed;
+    parts.push(
+      h('h3', {}, 'What did the owner get wrong?'),
+      h('p', { class: 'pin-ok' }, `Lines and hours right${pin?.gained ? `, first try: +${pin.gained}` : ''}. Their laytime used is ${Math.abs(tk.gap_hrs).toFixed(2)} hrs ${tk.gap_hrs > 0 ? 'over' : 'under'} yours.`),
+    );
     if (explainStage === 'write') {
-      parts.push(area, h('div', { class: 'sum-actions' },
+      parts.push(h('p', {}, 'Now say why in one sentence, the way you would put it to the owner.'), area, h('div', { class: 'sum-actions' },
         h('button', { class: 'gbtn ink', type: 'button', onclick: () => { explainStage = 'mark'; drawWork(); } }, 'Compare with the model note')));
     } else {
       parts.push(
@@ -323,6 +372,19 @@ export function deskScreen(desk, { onLeave } = {}) {
           h('button', { class: 'gbtn outline', type: 'button', onclick: () => finishExplain(false) }, 'Not quite')));
     }
     return h('article', { class: 'ticket t-explain' }, ...parts);
+  }
+
+  function checkDispute() {
+    const l = day.active;
+    const r = l?.run.pinpoint([...pickLines], pickHours);
+    if (!r) return;
+    if (r.right) {
+      checkMsg = null;
+      explainStage = 'write';
+      if (r.gained) gain = r.gained;
+    } else checkMsg = r.message;
+    drawWork();
+    drawStatus();
   }
 
   function describe(tk, l) {
@@ -407,8 +469,7 @@ export function deskScreen(desk, { onLeave } = {}) {
     feedback = null;
     const ln = l.run.lines[l.run.lines.length - 1];
     addLine(lineFor(ln, l), l);
-    explainStage = 'write';
-    if (day.active && day.active !== l) explainText = '';
+    if (day.active && day.active !== l) resetDispute();
     drawStatus();
     if (tipFor(day.active)) return;
     drawWork();
@@ -438,10 +499,16 @@ export function deskScreen(desk, { onLeave } = {}) {
       afterClose(l);
     }, HEAD_DELAY);
   }
+  function resetDispute() {
+    explainText = '';
+    explainStage = 'check';
+    pickLines = new Set();
+    pickHours = null;
+    checkMsg = null;
+  }
   function finishExplain(gotIt) {
     day.explain(explainText.trim(), gotIt);
-    explainText = '';
-    explainStage = 'write';
+    resetDispute();
     drawStatus();
     if (!tipFor(day.active)) drawWork();
   }
@@ -476,7 +543,7 @@ export function deskScreen(desk, { onLeave } = {}) {
       if (tk.type === 'owner' && (k === 'a' || k === 'd')) { e.preventDefault(); return call(k === 'a' ? 'agree' : 'dispute'); }
       if (tk.options && /^[1-9]$/.test(k) && tk.options[Number(k) - 1]) { e.preventDefault(); return call(tk.options[Number(k) - 1].id); }
     }
-    if (e.key === ' ' && !day.finished && e.target === document.body) { e.preventDefault(); setPaused(!paused); }
+    if (e.key === ' ' && !day.finished && (e.target === document.body || e.target === work)) { e.preventDefault(); setPaused(!paused); }
   }
 
   // A vessel's NOR goes on the statement when the desk clock reaches it

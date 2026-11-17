@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
-import { STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
+import { POINTS, STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
 
@@ -188,6 +188,40 @@ for (let guard = 0; !twoWrong.finished && guard < 20000; guard++) {
 }
 const tw = twoWrong.summary();
 check(`a day's dollars are the sum of each vessel's miss (${tw.per.map((p) => p.off_usd).join(' + ')} = ${tw.off_usd})`, tw.off_usd === Math.round(tw.per.reduce((n, p) => n + Math.abs(p.difference_usd), 0) * 100) / 100 && tw.off_usd >= Math.abs(tw.difference_usd));
+
+// ---------- 6. a dispute is checked before the sentence ----------
+const disputed = all.filter((it) => ownerTicket(it).answer === 'dispute');
+const wantLines = { clock_from_nor: 'commenced,owed,used', counted_shex_window: 'owed,used', omitted_weather: 'owed,used' };
+check(`the disputed lines match each planted error (${disputed.map((it) => `${it.ownerError.type}: ${ownerTicket(it).lines.filter((x) => x.differs).map((x) => x.id).join('+')}`).join('; ')})`, disputed.length === 3 && disputed.every((it) => ownerTicket(it).lines.filter((x) => x.differs).map((x) => x.id).sort().join() === wantLines[it.ownerError.type]));
+check('every dispute offers three hours, exactly one of them the gap from calc.mjs', disputed.every((it) => {
+  const tk = ownerTicket(it);
+  const gap = Math.abs(tk.owner.laytime_used_hrs - it.result.used_min / 60);
+  return tk.hours.length === 3 && tk.hours.filter((x) => Math.abs(x.hrs - gap) < 0.005).length === 1 && tk.hours.find((x) => x.id === tk.hoursAnswer).hrs === Math.round(gap * 100) / 100;
+}));
+check('the right hours option is not always in the same place', new Set(disputed.map((it) => ownerTicket(it).hoursAnswer)).size > 1);
+const toDispute = (it) => {
+  const run = createRun(it);
+  for (let guard = 0; !run.explaining && guard < 10000; guard++) run.open ? run.call(run.open.answer) : run.advance(60);
+  return run;
+};
+const pin = (run, lines, hoursId) => run.pinpoint(lines, hoursId);
+const right = (it) => { const tk = ownerTicket(it); return [tk.lines.filter((x) => x.differs).map((x) => x.id), tk.hoursAnswer]; };
+check('naming the lines and the hours first time earns the pinpoint points', disputed.every((it) => {
+  const run = toDispute(it);
+  const before = run.score;
+  const r = pin(run, ...right(it));
+  return r.right && r.gained === POINTS.pinpoint && run.score === before + POINTS.pinpoint && run.pinpointed.tries === 1;
+}));
+check('a wrong pick is coached, costs no strike, and can be tried again for no points', disputed.every((it) => {
+  const run = toDispute(it);
+  const [lines, hoursId] = right(it);
+  const wrongHours = ownerTicket(it).hours.find((x) => x.id !== hoursId).id;
+  const a = pin(run, lines, wrongHours);
+  const b = pin(run, ['commenced', 'used', 'owed'].filter((x) => !lines.includes(x)).concat(lines.slice(1)), hoursId);
+  const c = pin(run, lines, hoursId);
+  return !a.right && a.linesRight && !a.hoursRight && /less/.test(a.message) && !b.right && !b.linesRight && c.right && c.gained === 0 && run.strikes === 0 && run.explaining;
+}));
+check('the hours coaching names both figures to subtract', (() => { const it = disputed[0]; const run = toDispute(it); const m = pin(run, right(it)[0], ownerTicket(it).hours.find((x) => x.id !== right(it)[1]).id).message; return m.includes(it.owner.laytime_used_hrs.toFixed(2)) && m.includes((it.result.used_min / 60).toFixed(2)); })());
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

@@ -204,6 +204,7 @@
 
 .desk-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; padding: 20px 32px 24px; flex: 1; align-items: start; }
 .desk-work { min-width: 0; }
+.desk-work:focus { outline: none; }
 .waiting { border: 1px dashed var(--rule-strong); padding: 1.4rem 1.2rem; }
 .waiting p { margin: 0 0 0.3rem; }
 .ticket, .tip, .summary { border: 2px solid var(--ink); background: var(--surface); padding: 1rem 1.2rem 1.2rem; }
@@ -273,6 +274,15 @@
 .owner-table th, .owner-table td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
 .owner-table thead th { font: 600 0.68rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .owner-table tbody th { font-weight: 500; color: var(--muted); }
+.pick-lines, .pick-hours { display: grid; gap: 8px; margin: 0 0 0.9rem; }
+.pick-hours { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gbtn.pick { text-transform: none; letter-spacing: 0; font: 600 0.95rem var(--sans); border-width: 2px; }
+.gbtn.pick .sub { white-space: normal; }
+.pick-hours .gbtn.pick { font-family: var(--mono); align-items: center; text-align: center; padding-left: 1.4rem; padding-right: 1.4rem; }
+.gbtn.pick.on { background: var(--ink); color: var(--bg); }
+.gbtn.pick { position: relative; padding-right: 2rem; }
+.gbtn.pick.on::after { content: '\2713'; position: absolute; top: 0.55rem; right: 0.7rem; font: 700 0.95rem var(--mono); }
+.pin-ok { font: 600 0.85rem var(--mono); color: var(--ok); margin: 0 0 0.6rem; }
 .explain-input { display: block; width: 100%; box-sizing: border-box; font: 1rem/1.4 var(--sans); padding: 0.6rem 0.7rem; border: 2px solid var(--ink); background: var(--surface-2); color: var(--ink); border-radius: 0; margin: 0.4rem 0 0.8rem; resize: vertical; }
 .explain-input:focus { outline: 3px solid var(--focus); outline-offset: 1px; }
 .ticket .yours { margin: 0.4rem 0 0.8rem; padding-left: 0.8rem; border-left: 3px solid var(--rule-strong); font-style: italic; }

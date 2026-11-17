@@ -491,6 +491,20 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
       } else await page.keyboard.press(String(tk.options.findIndex((o) => o.id === tk.answer) + 1));
       await new Promise((r) => setTimeout(r, 150));
     }
+    // A dispute asks for the wrong lines and the hours before the sentence
+    const ownerStep = answers.find((t) => t.type === 'owner');
+    expectThat(`desk ${tag}: disputing opens the line and hours check`, await playTo('.t-explain .pick-lines'));
+    await page.click('[data-fk="check"]').catch(() => {});
+    expectThat(`desk ${tag}: Check waits for a pick`, await page.$eval('[data-fk="check"]', (b) => b.disabled));
+    const wrongHours = ownerStep.hours.find((x) => x.id !== ownerStep.hoursAnswer).id;
+    for (const x of ownerStep.lines.filter((y) => y.differs)) await page.click(`[data-fk="line-${x.id}"]`);
+    await page.click(`[data-fk="hours-${wrongHours}"]`);
+    await page.click('[data-fk="check"]');
+    await page.waitForSelector('.t-explain .coach');
+    expectThat(`desk ${tag}: wrong hours are coached`, /less/.test(await page.$eval('.t-explain .coach', (e) => e.innerText)));
+    await page.screenshot({ path: `${OUT}/18-desk-dispute-check-${tag}.png`, fullPage: true });
+    await page.click(`[data-fk="hours-${ownerStep.hoursAnswer}"]`);
+    await page.click('[data-fk="check"]');
     const asked = await playTo('.explain-input');
     if (!asked) log(`desk ${tag} stuck at`, await page.$eval('.desk-work', (e) => e.innerText.replace(/\s+/g, ' ').slice(0, 300)));
     expectThat(`desk ${tag}: disputing the owner asks for a sentence`, asked);
@@ -520,7 +534,17 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
     await page.click('.sb.controls .gbtn:nth-child(2)');
     const seen = [];
     let shotMid = false;
+    let stuck = 0;
     for (let i = 0; i < 1200 && !(await page.$('.summary')); i++) {
+      if (await page.$('.t-explain .pick-lines')) {
+        const v = await page.$eval('.t-explain .tk-vessel', (e) => e.textContent);
+        const ow = stepsOf[v].find((t) => t.type === 'owner');
+        for (const x of ow.lines.filter((y) => y.differs)) await page.click(`[data-fk="line-${x.id}"]`);
+        await page.click(`[data-fk="hours-${ow.hoursAnswer}"]`);
+        await page.click('[data-fk="check"]');
+        await page.waitForSelector('.t-explain .explain-input');
+        continue;
+      }
       if (await page.$('.t-explain .explain-input')) {
         await page.type('.explain-input', 'Their figure is wrong.');
         await page.click('.t-explain .gbtn.ink');
@@ -534,7 +558,17 @@ for (const [width, dark] of [[1360, false], [390, false], [390, true]]) {
       const id = Number((await page.$eval('.ticket .ticket-no', (e) => e.textContent)).match(/Ticket (\d+)/)[1]);
       const tk = stepsOf[vessel][id - 1];
       const key = `${vessel}:${id}`;
-      if (seen.at(-1) === key) { await new Promise((r) => setTimeout(r, 100)); continue; }
+      if (seen.at(-1) === key) {
+        // The same ticket still open after its call: say where, and stop
+        stuck += 1;
+        if (stuck > 40) {
+          problems.push(`desk ${tag}: day 1 stuck on ${key}: ${await page.$eval('.desk-work', (e) => e.innerText.replace(/\s+/g, ' ').slice(0, 200))} (focus ${await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 60))})`);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+        continue;
+      }
+      stuck = 0;
       seen.push(key);
       if (!shotMid && seen.length === 6) { shotMid = true; await page.screenshot({ path: `${OUT}/19-day-desk-${tag}.png`, fullPage: true }); }
       if (tk.type === 'time') await page.keyboard.press(tk.answer === 'off' ? 'e' : 'c');

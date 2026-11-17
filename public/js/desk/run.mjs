@@ -151,16 +151,37 @@ export function settleTicket(item) {
 }
 
 // The owner's statement against the true one. Disputed only where they differ.
+// A dispute is checked before the written sentence: which lines of their
+// statement are wrong, and by how many hours their laytime used is out.
 export function ownerTicket(item) {
   const o = item.owner;
-  const used = item.result.used_min / 60;
+  const r = item.result;
+  const used = r.used_min / 60;
   const differs = Math.abs(o.laytime_used_hrs - used) > 0.005;
+  const gap = Math.round((o.laytime_used_hrs - used) * 100) / 100;
+  const lines = [
+    { id: 'commenced', label: 'Laytime commenced', differs: o.laytime_commenced !== r.laytime_commenced },
+    { id: 'used', label: 'Laytime used', differs },
+    { id: 'owed', label: 'Owed', differs: o.result !== r.result || Math.abs(o.amount_usd - r.amount_usd) > 0.005 },
+  ];
+  // The true gap, and two misreadings of the table: their whole laytime
+  // used, and their laytime used against allowed
+  const seen = new Set();
+  const hours = [gap, o.laytime_used_hrs, o.laytime_used_hrs - r.allowed_min / 60, gap * 2]
+    .map((x) => Math.round(Math.abs(x) * 100) / 100)
+    .filter((x) => x > 0 && !seen.has(x) && seen.add(x))
+    .slice(0, 3)
+    .sort((a, b) => a - b)
+    .map((x, i) => ({ id: `h${i}`, hrs: x }));
   return {
     type: 'owner',
     owner: o,
-    yours: item.result,
+    yours: r,
     gap_hrs: o.laytime_used_hrs - used,
     error: item.ownerError ?? null,
+    lines,
+    hours,
+    hoursAnswer: differs ? hours.find((x) => x.hrs === Math.abs(gap)).id : null,
     answer: differs ? 'dispute' : 'agree',
     message: differs
       ? `Their laytime used is ${(o.laytime_used_hrs - used).toFixed(2)} hrs more than yours. Never sign a statement that disagrees with your own figure.`
@@ -182,6 +203,7 @@ export function createRun(item, { strikes } = {}) {
   const s = {
     t: nor, used: 0, next: 0, open: null, first: {}, tries: {}, lines: [],
     score: 0, streak: 0, strikes: 0, takenOver: false, explaining: null, explained: null, finished: false,
+    pinpointed: null, pinTries: 0,
   };
 
   const timeTickets = steps.filter((t) => t.type === 'time');
@@ -289,6 +311,30 @@ export function createRun(item, { strikes } = {}) {
       close(tk, tk.answer, false, true);
       return tk;
     },
+    // After disputing the owner, before the sentence: which lines are wrong
+    // (ids from the ticket's lines) and the hours (an id from its hours).
+    // Right on the first try earns POINTS.pinpoint; a miss is coached and
+    // can be tried again, with no strike.
+    pinpoint(lineIds, hoursId) {
+      const tk = s.explaining;
+      if (!tk || s.pinpointed) return null;
+      s.pinTries += 1;
+      const want = tk.lines.filter((x) => x.differs).map((x) => x.id).sort().join();
+      const linesRight = [...new Set(lineIds)].sort().join() === want;
+      const hoursRight = hoursId === tk.hoursAnswer;
+      if (linesRight && hoursRight) {
+        const gained = s.pinTries === 1 && !s.takenOver ? POINTS.pinpoint : 0;
+        s.score += gained;
+        s.pinpointed = { tries: s.pinTries, gained };
+        return { right: true, gained };
+      }
+      const usedYours = (tk.yours.used_min / 60).toFixed(2);
+      const message = !linesRight
+        ? 'Not those lines. Read their column against yours, line by line: dispute every line where the figures differ, and only those.'
+        : `The lines are right, but not the hours. Take your laytime used from theirs: ${tk.owner.laytime_used_hrs.toFixed(2)} less ${usedYours}.`;
+      return { right: false, linesRight, hoursRight, message };
+    },
+    get pinpointed() { return s.pinpointed; },
     // After disputing the owner: your sentence, then your own mark
     explain(text, gotIt) {
       if (!s.explaining) return;
@@ -333,6 +379,7 @@ export function createRun(item, { strikes } = {}) {
         strikes: s.strikes,
         takenOver: s.takenOver,
         explained: s.explained,
+        pinpointed: s.pinpointed,
       };
     },
   };
