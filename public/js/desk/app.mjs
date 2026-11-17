@@ -107,6 +107,9 @@ function glossaryScreen() {
   );
 }
 
+// Older ledger entries have only the net difference
+const offOf = (e) => e.off_usd ?? Math.abs(e.difference_usd);
+
 function ledgerScreen() {
   const b = bests();
   const USD = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -126,7 +129,7 @@ function ledgerScreen() {
               h('span', { class: 'lg-name' }, `Day ${i + 1} \u00B7 ${dayItems(i + 1).map((it) => it.fixture.vessel).join(', ')}`),
               e ? star(e.stars) : h('span', { class: 'muted small' }, 'not played'),
               h('span', { class: 'lg-score mono' }, e ? e.score.toLocaleString('en-GB') : ''),
-              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${e.difference_usd === 0 ? 'priced exactly' : `off by USD ${USD.format(Math.abs(e.difference_usd))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
+              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${offOf(e) === 0 ? 'priced exactly' : `off by USD ${USD.format(offOf(e))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
         })),
         h('h3', { class: 'ledger-h' }, 'Single cargoes'),
         h('ol', { class: 'ledger-list' }, items.map((it) => {
@@ -136,7 +139,7 @@ function ledgerScreen() {
               h('span', { class: 'lg-name' }, it.training ? 'Training cargo' : `${it.label} \u00B7 ${it.fixture.vessel}`),
               e ? star(e.stars) : h('span', { class: 'muted small' }, 'not played'),
               h('span', { class: 'lg-score mono' }, e ? e.score.toLocaleString('en-GB') : ''),
-              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${e.difference_usd === 0 ? 'priced exactly' : `off by USD ${USD.format(Math.abs(e.difference_usd))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
+              e ? h('span', { class: 'lg-detail mono' }, `${e.right} of ${e.decisions} right first time \u00B7 ${offOf(e) === 0 ? 'priced exactly' : `off by USD ${USD.format(offOf(e))}`}${e.runs > 1 ? ` \u00B7 ${e.runs} runs` : ''}`) : null));
         })))
       : h('div', { class: 'empty' },
         h('p', {}, 'Nothing settled yet. Your best run on each fixture shows here.'),

@@ -23,8 +23,23 @@ const REASONS = {
 
 export const CALLS = { counts: 'Time counts', off: 'Excepted', agree: 'Accept', dispute: 'Dispute' };
 
-export const POINTS = { right: 100, streakStep: 20, streakCap: 100, explained: 100 };
+export const POINTS = { right: 100, streakStep: 20, streakCap: 100, explained: 100, pinpoint: 50 };
 export const STRIKES = 3;
+
+// Stars weigh two things: how many calls were right first time, and how far
+// your first calls were from the true statement in dollars. The first rule
+// a run meets sets its stars; taken over by the head of operations is none.
+// On a day, the dollars add up vessel by vessel, so errors never cancel.
+export const STAR_RULES = [
+  { stars: 3, minShare: 0.9, maxOff: 1000 },
+  { stars: 2, minShare: 0.75, maxOff: 10000 },
+  { stars: 1, minShare: 0, maxOff: Infinity },
+];
+export function starsFor({ rightFirstTime, decisions, off_usd, takenOver }) {
+  if (takenOver) return 0;
+  const share = decisions ? rightFirstTime / decisions : 0;
+  return STAR_RULES.find((r) => share >= r.minShare - 1e-9 && off_usd <= r.maxOff).stars;
+}
 
 const USD = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (result, amount) => (result === 'level' ? 'Level, nothing owed' : `${result === 'demurrage' ? 'Demurrage' : 'Despatch'} USD ${USD.format(amount)}`);
@@ -302,12 +317,14 @@ export function createRun(item, { strikes } = {}) {
       const called = steps.filter((tk) => s.first[tk.id] && s.first[tk.id] !== '__head');
       const wrong = called.filter((tk) => s.first[tk.id] !== tk.answer);
       const rightFirstTime = called.length - wrong.length;
-      const stars = s.takenOver ? 0 : wrong.length === 0 ? 3 : wrong.length <= 2 ? 2 : 1;
+      // Positive means your calls pay the charterer more than the true statement
+      const difference = Math.round((signed(yours) - signed(result)) * 100) / 100;
+      const stars = starsFor({ rightFirstTime, decisions: steps.length, off_usd: Math.abs(difference), takenOver: s.takenOver });
       return {
         yours,
         correct: result,
-        // Positive means your calls pay the charterer more than the true statement
-        difference_usd: Math.round((signed(yours) - signed(result)) * 100) / 100,
+        difference_usd: difference,
+        off_usd: Math.abs(difference),
         rightFirstTime,
         decisions: steps.length,
         wrong,
@@ -440,17 +457,19 @@ export function createDay(items, { gap = ARRIVAL_GAP, strikes } = {}) {
     summary() {
       const per = lanes.map((l) => ({ lane: l, ...l.run.summary() }));
       const wrong = per.reduce((n, p) => n + p.wrong.length, 0);
-      return {
+      const out = {
         per,
         score: day.score,
         decisions: per.reduce((n, p) => n + p.decisions, 0),
         rightFirstTime: per.reduce((n, p) => n + p.rightFirstTime, 0),
         wrong,
         difference_usd: Math.round(per.reduce((n, p) => n + p.difference_usd, 0) * 100) / 100,
-        stars: takenOver ? 0 : wrong === 0 ? 3 : wrong <= 2 ? 2 : 1,
+        off_usd: Math.round(per.reduce((n, p) => n + p.off_usd, 0) * 100) / 100,
         takenOver,
         strikes: strikesUsed,
       };
+      out.stars = starsFor(out);
+      return out;
     },
   };
   return day;

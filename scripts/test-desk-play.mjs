@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { calculate, workedExample, deductions } from '../public/js/laytime/calc.mjs';
 import { hm, humanDates, hasIsoDate, cap } from '../public/js/desk/format.mjs';
 import { briefing, dayBriefing, termsLines, modelNote, recapNotes, STRIKE_RULE, TRAINING_EXCEPTION, OWNER_STEP } from '../public/js/desk/briefing.mjs';
-import { createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
+import { STAR_RULES, starsFor, createRun, createDay, ownerTicket, buildTickets, settleTicket, DAYS, planDay, shiftItem } from '../public/js/desk/run.mjs';
 import { stamp, span, hrs, USD } from '../public/js/desk/format.mjs';
 import { fromMin, toMin } from '../public/js/laytime/calc.mjs';
 
@@ -164,6 +164,30 @@ check('planned days play to the true statement on every vessel', plays.every(({ 
 check('no vessel brings a ticket before its NOR on the desk calendar', plays.every(({ day, seen }) => seen.every((x) => x.at >= day.lanes[x.i].run.nor)));
 check('every planned day still interleaves tickets across vessels', plays.every(({ seen }) => seen.some((x, i) => i > 1 && x.i !== seen[i - 1].i && seen.slice(0, i).some((y) => y.i === x.i))));
 check('the desk calendar starts at the first NOR', plays.every(({ day }) => day.start === day.lanes[0].run.nor));
+
+// ---------- 18. stars weigh right-first-time and dollars ----------
+check('the playtest run, 3 of 4 right and USD 26,041.67 off, gets one star', starsFor({ rightFirstTime: 3, decisions: 4, off_usd: 26041.67 }) === 1);
+check('the rain run on the training cargo, 3 of 4 right and USD 19,791.67 off, gets one star', rainWrong.summary().stars === 1 && rainWrong.summary().off_usd === 19791.67);
+check('a clean run gets three stars', playThrough(training).summary().stars === 3 && all.every((it) => playThrough(it).summary().stars === 3));
+check('every call right but one, with no dollars lost, is still short of three stars on a single fixture', starsFor({ rightFirstTime: 5, decisions: 6, off_usd: 0 }) === 2);
+check('all right but a big dollar miss cannot reach two stars', starsFor({ rightFirstTime: 12, decisions: 13, off_usd: 10000.01 }) === 1);
+check('taken over is no stars, whatever the dollars', starsFor({ rightFirstTime: 4, decisions: 4, off_usd: 0, takenOver: true }) === 0);
+check('the star rules run from three stars down to one, stricter at each step', STAR_RULES.map((r) => r.stars).join() === '3,2,1' && STAR_RULES.every((r, i) => i === 0 || (r.minShare <= STAR_RULES[i - 1].minShare && r.maxOff >= STAR_RULES[i - 1].maxOff)));
+// On a day the dollars add up vessel by vessel, so two errors never cancel
+const d2 = plans[1];
+const twoWrong = createDay(d2);
+let flips = 0;
+for (let guard = 0; !twoWrong.finished && guard < 20000; guard++) {
+  const l = twoWrong.active;
+  if (!l) { twoWrong.advance(60); continue; }
+  if (l.run.explaining) { twoWrong.explain('x', true); continue; }
+  const tk = l.run.open;
+  // Wrong on the first time ticket of the first two vessels, then recast
+  if (tk.type === 'time' && flips < 2 && !l.flipped) { l.flipped = true; flips++; twoWrong.call(tk.answer === 'off' ? 'counts' : 'off'); }
+  twoWrong.call(tk.answer);
+}
+const tw = twoWrong.summary();
+check(`a day's dollars are the sum of each vessel's miss (${tw.per.map((p) => p.off_usd).join(' + ')} = ${tw.off_usd})`, tw.off_usd === Math.round(tw.per.reduce((n, p) => n + Math.abs(p.difference_usd), 0) * 100) / 100 && tw.off_usd >= Math.abs(tw.difference_usd));
 
 console.log(`\n${n - fails} passed, ${fails} failed.`);
 process.exit(fails ? 1 : 0);

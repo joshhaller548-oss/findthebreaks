@@ -123,7 +123,8 @@ const wrongRain = playThrough(training, (tk) => (tk.reason === 'rain' ? 'counts'
 const ws = wrongRain.summary();
 check('a wrong call is coached, then recast, and the statement still ends right', wrongRain.used === training.result.used_min && !wrongRain.lines.find((l) => l.reason === 'rain').firstTime);
 check(`counting the rain prices as demurrage USD ${ws.yours.amount_usd} against despatch USD ${training.result.amount_usd}, once on demurrage`, ws.yours.result === 'demurrage' && ws.yours.demurrage_after_exceptions && ws.yours.amount_usd === 18750 && ws.difference_usd === -19791.67);
-check('the summary names the wrong call and scores the rest', ws.wrong.length === 1 && ws.wrong[0].reason === 'rain' && ws.rightFirstTime === 3 && ws.stars === 2);
+// Stars weigh dollars too (playtest item 18): 3 of 4 right but USD 19,791.67 off is one star, not two
+check('the summary names the wrong call and scores the rest', ws.wrong.length === 1 && ws.wrong[0].reason === 'rain' && ws.rightFirstTime === 3 && ws.stars === 1);
 const fromNor = playThrough(training, (tk) => (tk.type === 'start' ? tk.options.find((o) => o.why === 'at NOR').id : tk.answer));
 check('starting the clock at NOR is priced by calc.mjs with that commencement', fromNor.summary().yours.used_min === training.result.used_min + 12 * 60 && fromNor.summary().difference_usd < 0);
 const early = createRun(training);

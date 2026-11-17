@@ -4,7 +4,7 @@
 // (createDay); this file only draws them and takes your calls.
 
 import { h } from '../dom.mjs';
-import { createDay, ticketTitle, CALLS } from './run.mjs';
+import { createDay, ticketTitle, CALLS, STAR_RULES } from './run.mjs';
 import { HEAD, termsLines, modelNote, recapNotes } from './briefing.mjs';
 import { when, stamp, span, hm, hrs, owed, USD, N } from './format.mjs';
 import { harbour } from './harbour.mjs';
@@ -13,7 +13,19 @@ import { profile } from './profile.mjs';
 // Simulated minutes per real second, at normal and fast speed
 const SPEEDS = { normal: 240, fast: 960 };
 const HEAD_DELAY = 900;
-const stars = (n) => h('span', { class: 'stars', 'aria-label': `${n} of 3 stars` }, '★'.repeat(n), h('span', { class: 'off' }, '★'.repeat(3 - n)));
+const stars = (n) => h('span', { class: 'stars', role: 'img', 'aria-label': `${n} of 3 stars` }, '★'.repeat(n), h('span', { class: 'off' }, '★'.repeat(3 - n)));
+// The star rules from run.mjs, written out, with the one this run met marked
+function starRules(s) {
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const rule = (r) => (r.maxOff === Infinity ? 'Settled it yourself' : `${pct(r.minShare)} or more right first time, and first calls within USD ${N.format(r.maxOff)} of the true statement${s.per.length > 1 ? 's' : ''}`);
+  const share = s.decisions ? s.rightFirstTime / s.decisions : 0;
+  return h('div', { class: 'star-rules' },
+    h('p', { class: 'coach-tag' }, 'How stars are earned'),
+    h('p', { class: 'mono small' }, `This run: ${pct(share)} right first time (${s.rightFirstTime} of ${s.decisions}), first calls off by USD ${USD.format(s.off_usd)}${s.per.length > 1 ? ', vessel by vessel' : ''}.`),
+    h('ul', {}, STAR_RULES.map((r) => h('li', { class: r.stars === s.stars ? 'met' : null },
+      stars(r.stars), h('span', {}, rule(r)), r.stars === s.stars ? h('strong', { class: 'met-tag' }, 'Your run') : null)),
+    h('li', { class: s.stars === 0 ? 'met' : null }, stars(0), h('span', {}, `${HEAD.name} took the desk`), s.stars === 0 ? h('strong', { class: 'met-tag' }, 'Your run') : null)));
+}
 const vesselName = (item) => (item.training ? 'Training cargo' : item.fixture.vessel);
 
 // The vessel's name heads the strip only when several share the desk, but
@@ -326,13 +338,15 @@ export function deskScreen(desk, { onLeave } = {}) {
     const s = day.summary();
     if (!recorded) {
       recorded = true;
-      profile.record({ n: desk.key, label: desk.label, vessel: desk.title, score: s.score, stars: s.stars, right: s.rightFirstTime, decisions: s.decisions, difference_usd: s.difference_usd, takenOver: s.takenOver });
+      profile.record({ n: desk.key, label: desk.label, vessel: desk.title, score: s.score, stars: s.stars, right: s.rightFirstTime, decisions: s.decisions, difference_usd: s.difference_usd, off_usd: s.off_usd, takenOver: s.takenOver });
     }
     const best = Math.max(...profile.ledger().filter((e) => e.n === desk.key).map((e) => e.score));
     const diff = s.difference_usd;
-    const verdict = diff === 0 ? 'Your calls match the true statements.'
-      : diff < 0 ? `Your calls cost the charterer USD ${USD.format(-diff)} more than the true statement${multi ? 's' : ''}.`
-        : `Your calls claim USD ${USD.format(diff)} more than the true statement${multi ? 's' : ''}. The owner will push back.`;
+    const verdict = multi
+      ? (s.off_usd === 0 ? 'Your calls match the true statements.' : `Your first calls were USD ${USD.format(s.off_usd)} away from the true statements, added up vessel by vessel.`)
+      : diff === 0 ? 'Your calls match the true statement.'
+        : diff < 0 ? `Your calls cost the charterer USD ${USD.format(-diff)} more than the true statement.`
+          : `Your calls claim USD ${USD.format(diff)} more than the true statement. The owner will push back.`;
     const one = s.per[0];
     const head = [
       h('p', { class: 'ticket-no' }, multi ? `${desk.label} complete · every vessel settled` : `Loading complete · ${stamp(one.lane.run.done)}`),
@@ -359,8 +373,9 @@ export function deskScreen(desk, { onLeave } = {}) {
     return h('article', { class: 'summary', 'aria-labelledby': 'sum-title' },
       ...head,
       grid,
-      multi ? h('p', { class: `day-diff ${diff === 0 ? 'zero' : 'off'}` }, h('strong', {}, `Across the day: USD ${USD.format(Math.abs(diff))}. `), verdict) : null,
+      multi ? h('p', { class: `day-diff ${s.off_usd === 0 ? 'zero' : 'off'}` }, h('strong', {}, `Across the day: USD ${USD.format(s.off_usd)}. `), verdict) : null,
       h('p', {}, `Right first time: ${s.rightFirstTime} of ${s.decisions} calls.`),
+      starRules(s),
       ...notes,
       wrongs.length ? h('ul', { class: 'sum-wrong' }, wrongs) : null,
       h('div', { class: 'sum-actions' },
